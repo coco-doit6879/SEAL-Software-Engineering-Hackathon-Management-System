@@ -1,0 +1,256 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  COORDINATOR
+  INTERNAL_JUDGE
+  GUEST_JUDGE
+  MENTOR
+  STUDENT
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum EventStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+}
+
+enum RoundStatus {
+  UPCOMING
+  SUBMISSION_OPEN
+  SUBMISSION_CLOSED
+  CALIBRATION
+  EVALUATION
+  COMPLETED
+}
+
+enum TeamStatus {
+  PENDING
+  APPROVED
+  DISQUALIFIED
+}
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  passwordHash  String
+  fullName      String
+  role          Role
+  status        UserStatus  @default(PENDING)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  studentProfile StudentProfile?
+  mentorTracks   TrackMentor[]
+  judgeRounds    RoundJudge[]
+  teamMembers    TeamMember[]
+  scores         Score[]
+  calibrationScores CalibrationScore[]
+  auditLogs      AuditLog[]
+}
+
+model StudentProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isFptStudent Boolean
+  studentCode  String   // Roll number if FPT, standard code if external
+  university   String   // "FPT University HCMC" or other school name
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  term        String      // "Spring", "Summer", "Fall"
+  year        Int
+  status      EventStatus @default(DRAFT)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  tracks      Track[]
+  rounds      Round[]
+}
+
+model Track {
+  id          String   @id @default(uuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String   // e.g., "Web App", "AI & IoT", "Mobile App"
+  description String?
+
+  mentors     TrackMentor[]
+  teams       Team[]
+}
+
+model TrackMentor {
+  id        String   @id @default(uuid())
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([trackId, userId])
+}
+
+model Round {
+  id                 String      @id @default(uuid())
+  eventId            String
+  event              Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name               String      // e.g., "Prelim", "Final"
+  sequenceNumber     Int         // 1, 2, ...
+  submissionDeadline DateTime
+  status             RoundStatus @default(UPCOMING)
+  topNToProgress     Int         // Number of teams progressing to next round in each track
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  criteria            RoundCriterion[]
+  judges              RoundJudge[]
+  submissions         Submission[]
+  calibrationSamples  CalibrationSample[]
+}
+
+model RoundCriterion {
+  id          String   @id @default(uuid())
+  roundId     String
+  round       Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  name        String   // e.g., "UI/UX", "Technical Implementation", "Pitching"
+  description String?
+  maxPoints   Float
+  weight      Float    // e.g., 0.30 (30%)
+  isTechnical Boolean  @default(true) // Crucial to answer RQ2 (Technical vs Soft/subjective)
+
+  scores      Score[]
+  calibrationScores CalibrationScore[]
+}
+
+model RoundJudge {
+  id      String @id @default(uuid())
+  roundId String
+  round   Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+}
+
+model Team {
+  id            String     @id @default(uuid())
+  trackId       String
+  track         Track      @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  name          String     @unique
+  status        TeamStatus @default(PENDING)
+  reasonBlocked String?    // For audit log / UI if disqualified
+  createdAt     DateTime   @default(now())
+
+  members       TeamMember[]
+  submissions   Submission[]
+  prizes        Prize[]
+}
+
+model TeamMember {
+  id       String  @id @default(uuid())
+  teamId   String
+  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isLeader Boolean @default(false)
+
+  @@unique([teamId, userId])
+}
+
+model Submission {
+  id            String   @id @default(uuid())
+  roundId       String
+  round         Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  teamId        String
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  repoUrl       String
+  demoUrl       String
+  documentUrl   String?
+  submittedAt   DateTime @default(now())
+  isDisqualified Boolean @default(false)
+  disqualificationReason String?
+
+  scores        Score[]
+
+  @@unique([roundId, teamId])
+}
+
+model Score {
+  id           String         @id @default(uuid())
+  submissionId String
+  submission   Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  judgeId      String
+  judge        User           @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  criterionId  String
+  criterion    RoundCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  scoreValue   Float          // Raw score awarded
+  comments     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([submissionId, judgeId, criterionId])
+}
+
+model CalibrationSample {
+  id          String   @id @default(uuid())
+  roundId     String
+  round       Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  repoUrl     String
+  demoUrl     String
+  documentUrl String?
+  createdAt   DateTime @default(now())
+
+  scores      CalibrationScore[]
+}
+
+model CalibrationScore {
+  id                  String            @id @default(uuid())
+  calibrationSampleId String
+  calibrationSample   CalibrationSample @relation(fields: [calibrationSampleId], references: [id], onDelete: Cascade)
+  judgeId             String
+  judge               User              @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  criterionId         String
+  criterion           RoundCriterion    @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  scoreValue          Float
+  comments            String?
+  createdAt           DateTime          @default(now())
+
+  @@unique([calibrationSampleId, judgeId, criterionId])
+}
+
+model Prize {
+  id          String   @id @default(uuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name        String   // e.g., "Champion", "Runner-up", "Best Technical Project"
+  description String?
+  rewardCash  Float?
+  awardedAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actionType String   // e.g., "SUBMISSION_DISQUALIFY", "SCORE_OVERRIDE", "ROUND_PROGRESSION"
+  details    String   // JSON string detailing the change
+  reason     String   // Mandatory explanation for critical actions
+  timestamp  DateTime @default(now())
+}
