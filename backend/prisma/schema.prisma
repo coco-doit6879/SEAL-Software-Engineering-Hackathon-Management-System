@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -43,7 +43,7 @@ enum TeamStatus {
 }
 
 model User {
-  id            String      @id @default(uuid())
+  id            String      @id @default(uuid()) @map("_id")
   email         String      @unique
   passwordHash  String
   fullName      String
@@ -62,7 +62,7 @@ model User {
 }
 
 model StudentProfile {
-  id           String   @id @default(uuid())
+  id           String   @id @default(uuid()) @map("_id")
   userId       String   @unique
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   isFptStudent Boolean
@@ -71,7 +71,7 @@ model StudentProfile {
 }
 
 model Event {
-  id          String      @id @default(uuid())
+  id          String      @id @default(uuid()) @map("_id")
   name        String
   description String?
   term        String      // "Spring", "Summer", "Fall"
@@ -85,7 +85,7 @@ model Event {
 }
 
 model Track {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @map("_id")
   eventId     String
   event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name        String   // e.g., "Web App", "AI & IoT", "Mobile App"
@@ -96,7 +96,7 @@ model Track {
 }
 
 model TrackMentor {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @map("_id")
   trackId   String
   track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
   userId    String
@@ -106,7 +106,7 @@ model TrackMentor {
 }
 
 model Round {
-  id                 String      @id @default(uuid())
+  id                 String      @id @default(uuid()) @map("_id")
   eventId            String
   event              Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name               String      // e.g., "Prelim", "Final"
@@ -124,7 +124,7 @@ model Round {
 }
 
 model RoundCriterion {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @map("_id")
   roundId     String
   round       Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
   name        String   // e.g., "UI/UX", "Technical Implementation", "Pitching"
@@ -138,7 +138,7 @@ model RoundCriterion {
 }
 
 model RoundJudge {
-  id      String @id @default(uuid())
+  id      String @id @default(uuid()) @map("_id")
   roundId String
   round   Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
   userId  String
@@ -148,7 +148,7 @@ model RoundJudge {
 }
 
 model Team {
-  id            String     @id @default(uuid())
+  id            String     @id @default(uuid()) @map("_id")
   trackId       String
   track         Track      @relation(fields: [trackId], references: [id], onDelete: Cascade)
   name          String     @unique
@@ -162,7 +162,7 @@ model Team {
 }
 
 model TeamMember {
-  id       String  @id @default(uuid())
+  id       String  @id @default(uuid()) @map("_id")
   teamId   String
   team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   userId   String
@@ -173,7 +173,7 @@ model TeamMember {
 }
 
 model Submission {
-  id            String   @id @default(uuid())
+  id            String   @id @default(uuid()) @map("_id")
   roundId       String
   round         Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
   teamId        String
@@ -191,7 +191,7 @@ model Submission {
 }
 
 model Score {
-  id           String         @id @default(uuid())
+  id           String         @id @default(uuid()) @map("_id")
   submissionId String
   submission   Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   judgeId      String
@@ -207,7 +207,7 @@ model Score {
 }
 
 model CalibrationSample {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @map("_id")
   roundId     String
   round       Round    @relation(fields: [roundId], references: [id], onDelete: Cascade)
   title       String
@@ -221,7 +221,7 @@ model CalibrationSample {
 }
 
 model CalibrationScore {
-  id                  String            @id @default(uuid())
+  id                  String            @id @default(uuid()) @map("_id")
   calibrationSampleId String
   calibrationSample   CalibrationSample @relation(fields: [calibrationSampleId], references: [id], onDelete: Cascade)
   judgeId             String
@@ -236,7 +236,7 @@ model CalibrationScore {
 }
 
 model Prize {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @map("_id")
   teamId      String
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   name        String   // e.g., "Champion", "Runner-up", "Best Technical Project"
@@ -246,7 +246,7 @@ model Prize {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid())
+  id         String   @id @default(uuid()) @map("_id")
   actorId    String?
   actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
   actionType String   // e.g., "SUBMISSION_DISQUALIFY", "SCORE_OVERRIDE", "ROUND_PROGRESSION"

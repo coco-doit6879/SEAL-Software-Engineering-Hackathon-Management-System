@@ -5,14 +5,16 @@ Hệ thống quản lý và chấm điểm cuộc thi SEAL Hackathon cho Khoa K�
 ## Cấu trúc dự án (Repository Structure)
 
 Dự án được chia thành 2 phần chính:
-- **`backend/`**: Xây dựng bằng ExpressJS, TypeScript, Prisma ORM và cơ sở dữ liệu PostgreSQL.
+- **`backend/`**: Xây dựng bằng ExpressJS, TypeScript, Prisma ORM và cơ sở dữ liệu MongoDB (NoSQL).
 - **`frontend/`**: Xây dựng bằng Next.js (App Router), TypeScript và Tailwind CSS.
 
 ## Hướng dẫn cài đặt nhanh (Quick Setup)
 
 ### Yêu cầu hệ thống (Prerequisites)
 - [Node.js](https://nodejs.org/) (Khuyến nghị phiên bản v18 trở lên)
-- [Docker](https://www.docker.com/) (để chạy PostgreSQL cục bộ qua Docker Compose) hoặc dịch vụ PostgreSQL cài đặt sẵn trên máy.
+- Cơ sở dữ liệu MongoDB:
+  - **Khuyến nghị:** Sử dụng dịch vụ đám mây miễn phí [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (đã hỗ trợ sẵn chế độ Replica Set cần thiết cho Prisma, thiết lập cực kỳ nhanh chóng và không cần cài đặt Docker/Local DB).
+  - Hoặc cài đặt MongoDB cục bộ và cấu hình chạy dưới dạng Replica Set (vì Prisma yêu cầu Replica Set để thực hiện các giao dịch).
 
 ### 1. Khởi chạy Backend
 1. Di chuyển vào thư mục backend:
@@ -27,10 +29,10 @@ Dự án được chia thành 2 phần chính:
    ```bash
    cp .env.example .env
    ```
-   *Lưu ý: Điều chỉnh thông số `DATABASE_URL` kết nối tới PostgreSQL của bạn.*
-4. Chạy các câu lệnh cập nhật Database (Prisma Migrations) và sinh client:
+    *Lưu ý: Điều chỉnh thông số `DATABASE_URL` kết nối tới MongoDB của bạn (đối với MongoDB Atlas hoặc local replica set).*
+4. Đẩy cấu hình Schema lên Database:
    ```bash
-   npx prisma migrate dev
+   npm run prisma:db-push
    ```
 5. Chạy seed dữ liệu mẫu (các vai trò, sự kiện mặc định):
    ```bash
