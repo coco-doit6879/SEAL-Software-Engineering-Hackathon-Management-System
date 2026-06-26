@@ -11,11 +11,14 @@
         <mxCell id="3" value="&lt;b&gt;Third-party Integrations&lt;/b&gt;" style="rounded=1;absoluteArcSize=1;arcSize=10;html=1;whiteSpace=wrap;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=2;align=center;verticalAlign=top;fontStyle=1;fontColor=#475569;spacingTop=10;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="250" y="80" width="700" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="4" value="&lt;b&gt;Google Gemini API&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Gemini 2.5 Flash (RAG &amp;amp; Analytics)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;strokeWidth=2;fontColor=#991B1B;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="330" y="130" width="220" height="50" as="geometry" />
+        <mxCell id="4" value="&lt;b&gt;Google Gemini API&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Gemini 2.5 Flash (RAG &amp;amp; Analytics)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#2563EB;strokeWidth=2;fontColor=#1E40AF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="280" y="130" width="180" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="5" value="&lt;b&gt;GitHub API&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Repository Scraper Check&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B;strokeWidth=2;fontColor=#1E293B;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="650" y="130" width="220" height="50" as="geometry" />
+        <mxCell id="19" value="&lt;b&gt;Gmail SMTP (Nodemailer)&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Email Notifications &amp;amp; Alerts&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#DC2626;strokeWidth=2;fontColor=#991B1B;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="510" y="130" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="&lt;b&gt;GitHub API&lt;/b&gt;&lt;br&gt;&lt;font size=&quot;1&quot;&gt;Repository Scraper Check&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=2;fontColor=#1E293B;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="740" y="130" width="180" height="50" as="geometry" />
         </mxCell>
         <mxCell id="6" value="&lt;b&gt;Client Side (Next.js App)&lt;/b&gt;" style="rounded=1;absoluteArcSize=1;arcSize=10;html=1;whiteSpace=wrap;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=2;align=center;verticalAlign=top;fontStyle=1;fontColor=#475569;spacingTop=10;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="50" y="260" width="240" height="350" as="geometry" />
@@ -56,16 +59,22 @@
             <mxPoint x="900" y="435" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="17" value="Google GenAI SDK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#EF4444;fontColor=#991B1B;fontSize=11;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.3;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="9" target="4">
+        <mxCell id="17" value="Google GenAI SDK" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#2563EB;fontColor=#1E40AF;fontSize=11;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.2;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="9" target="4">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="500" y="260" as="sourcePoint" />
-            <mxPoint x="440" y="190" as="targetPoint" />
+            <mxPoint x="450" y="260" as="sourcePoint" />
+            <mxPoint x="370" y="180" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="18" value="HTTPS Call" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#64748B;fontColor=#1E293B;fontSize=11;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.7;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="9" target="5">
+        <mxCell id="20" value="SMTP / TLS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#DC2626;fontColor=#991B1B;fontSize=11;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="9" target="19">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="700" y="260" as="sourcePoint" />
-            <mxPoint x="760" y="190" as="targetPoint" />
+            <mxPoint x="600" y="260" as="sourcePoint" />
+            <mxPoint x="600" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="18" value="HTTPS Call" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#475569;fontColor=#1E293B;fontSize=11;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.8;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="9" target="5">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="750" y="260" as="sourcePoint" />
+            <mxPoint x="830" y="180" as="targetPoint" />
           </mxGeometry>
         </mxCell>
       </root>
