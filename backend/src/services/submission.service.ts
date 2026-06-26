@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError';
 import { auditService } from './audit.service';
 import { CreateSubmissionInput } from '../validators/submission.validator';
 import { scoreService } from './score.service';
+import { emailService } from './email.service';
 
 export const submissionService = {
   /**
@@ -21,7 +22,14 @@ export const submissionService = {
     // Verify team exists and is approved
     const team = await prisma.team.findUnique({
       where: { id: data.teamId },
-      include: { members: true, track: true },
+      include: {
+        members: {
+          include: {
+            user: { select: { id: true, fullName: true, email: true } },
+          },
+        },
+        track: true,
+      },
     });
     if (!team) {
       throw ApiError.notFound('Team not found.');
@@ -99,6 +107,19 @@ export const submissionService = {
         round: true,
       },
     });
+
+    // Send email confirmation notification to team leader
+    if (leaderMember && leaderMember.user.email) {
+      emailService.sendSubmissionConfirmationEmail(
+        leaderMember.user.email,
+        leaderMember.user.fullName,
+        team.name,
+        round.name,
+        submission.repoUrl,
+        submission.demoUrl
+      ).catch((err) => console.error('Failed to send submission confirmation email:', err));
+    }
+
     return submission;
   },
 
