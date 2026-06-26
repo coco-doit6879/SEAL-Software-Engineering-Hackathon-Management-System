@@ -4,6 +4,7 @@ import {
   CreateCalibrationSampleInput,
   SubmitCalibrationScoreInput,
 } from '../validators/calibration.validator';
+import { calculateICC, calculateKrippendorffAlpha } from '../utils/rblStats';
 
 export const calibrationService = {
   /**
@@ -165,6 +166,97 @@ export const calibrationService = {
           comments: s.comments,
         })),
       })),
+    };
+  },
+
+  /**
+   * Get calibration analytics (ICC, Alpha) for a round.
+   */
+  async getCalibrationAnalytics(roundId: string) {
+    const round = await prisma.round.findUnique({
+      where: { id: roundId },
+      include: {
+        criteria: true,
+        judges: true,
+      },
+    });
+    if (!round) {
+      throw ApiError.notFound('Round not found.');
+    }
+
+    const samples = await prisma.calibrationSample.findMany({
+      where: { roundId },
+      include: {
+        scores: true,
+      },
+    });
+
+    const judgeIds = round.judges.map((j) => j.userId);
+
+    // Per-criterion analysis
+    const criterionAnalytics = round.criteria.map((criterion) => {
+      // Build matrix: rows = samples, cols = judges
+      const matrix: number[][] = [];
+      const matrixWithNulls: (number | null)[][] = [];
+
+      for (const sample of samples) {
+        const row: number[] = [];
+        const rowWithNulls: (number | null)[] = [];
+        for (const judgeId of judgeIds) {
+          const score = sample.scores.find(
+            (s) => s.judgeId === judgeId && s.criterionId === criterion.id
+          );
+          row.push(score ? score.scoreValue : 0);
+          rowWithNulls.push(score ? score.scoreValue : null);
+        }
+        matrix.push(row);
+        matrixWithNulls.push(rowWithNulls);
+      }
+
+      const icc = matrix.length > 1 && judgeIds.length > 1 ? calculateICC(matrix) : 0;
+      const alpha = calculateKrippendorffAlpha(matrixWithNulls);
+
+      return {
+        criterionId: criterion.id,
+        criterionName: criterion.name,
+        isTechnical: criterion.isTechnical,
+        icc: Math.round(icc * 1000) / 1000,
+        krippendorffAlpha: Math.round(alpha * 1000) / 1000,
+      };
+    });
+
+    // Overall matrix (all criteria combined weighted)
+    const overallMatrix: number[][] = [];
+    for (const sample of samples) {
+      const row: number[] = [];
+      for (const judgeId of judgeIds) {
+        let weightedTotal = 0;
+        for (const criterion of round.criteria) {
+          const score = sample.scores.find(
+            (s) => s.judgeId === judgeId && s.criterionId === criterion.id
+          );
+          const normalizedScore = score
+            ? score.scoreValue / criterion.maxPoints
+            : 0;
+          weightedTotal += normalizedScore * criterion.weight;
+        }
+        row.push(weightedTotal * 100);
+      }
+      overallMatrix.push(row);
+    }
+
+    const overallIcc =
+      overallMatrix.length > 1 && judgeIds.length > 1
+        ? calculateICC(overallMatrix)
+        : 0;
+
+    return {
+      roundId,
+      roundName: round.name,
+      totalSamples: samples.length,
+      totalJudges: judgeIds.length,
+      overallIcc: Math.round(overallIcc * 1000) / 1000,
+      criterionAnalytics,
     };
   },
 };

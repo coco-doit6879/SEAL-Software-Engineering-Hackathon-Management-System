@@ -164,4 +164,29 @@ router.get(
   calibrationController.getCalibrationResults
 );
 
+/**
+ * @openapi
+ * /calibration/results/{roundId}/analytics:
+ *   get:
+ *     summary: Get calibration analytics (ICC, Alpha) for a round (COORDINATOR only)
+ *     tags: [Calibration]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: roundId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Calibration analytics retrieved successfully
+ */
+router.get(
+  '/results/:roundId/analytics',
+  authorize('COORDINATOR'),
+  validate({ params: roundIdParamSchema }),
+  calibrationController.getCalibrationAnalytics
+);
+
 export default router;

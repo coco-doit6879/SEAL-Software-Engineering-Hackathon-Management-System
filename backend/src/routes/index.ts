@@ -10,6 +10,7 @@ import scoreRoutes from './score.routes';
 import calibrationRoutes from './calibration.routes';
 import prizeRoutes from './prize.routes';
 import auditRoutes from './audit.routes';
+import aiRoutes from './ai.routes';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/scores', scoreRoutes);
 router.use('/calibration', calibrationRoutes);
 router.use('/prizes', prizeRoutes);
 router.use('/audit-logs', auditRoutes);
+router.use('/ai', aiRoutes);
 
 export default router;

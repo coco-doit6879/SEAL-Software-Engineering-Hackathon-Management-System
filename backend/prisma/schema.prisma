@@ -254,3 +254,11 @@ model AuditLog {
   reason     String   // Mandatory explanation for critical actions
   timestamp  DateTime @default(now())
 }
+
+model RuleDocument {
+  id        String   @id @default(uuid()) @map("_id")
+  title     String
+  content   String
+  embedding Float[]
+  createdAt DateTime @default(now())
+}

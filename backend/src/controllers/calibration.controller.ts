@@ -40,4 +40,12 @@ export const calibrationController = {
       data: results,
     });
   }),
+
+  getCalibrationAnalytics: asyncHandler(async (req: Request, res: Response) => {
+    const analytics = await calibrationService.getCalibrationAnalytics(req.params.roundId);
+    res.status(200).json({
+      success: true,
+      data: analytics,
+    });
+  }),
 };
