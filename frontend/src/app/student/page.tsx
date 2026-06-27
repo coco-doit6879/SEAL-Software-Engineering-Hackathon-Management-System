@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -160,11 +160,11 @@ export default function StudentDashboard() {
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const [repoUrl, setRepoUrl] = useState("");
   const [demoUrl, setDemoUrl] = useState("");
+  const toastCounter = useRef(0);
 
   // ── Toast helpers ──
-  let toastCounter = 0;
   function addToast(type: ToastType, message: string) {
-    const id = ++toastCounter;
+    const id = ++toastCounter.current;
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(
       () => setToasts((prev) => prev.filter((t) => t.id !== id)),
