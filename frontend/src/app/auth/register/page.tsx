@@ -24,13 +24,13 @@ import { fetchWithAuth } from "@/lib/api";
 type RegisterRole = "STUDENT" | "MENTOR";
 
 interface RegisterPayload {
-  name: string;
+  fullName: string;
   email: string;
   password: string;
-  phone: string;
+  phone?: string;
   role: RegisterRole;
   isFptStudent: boolean;
-  studentId?: string;
+  studentCode?: string;
 }
 
 // ─── Helper: Password strength ───────────────────────────────────────────────
@@ -113,13 +113,13 @@ export default function RegisterPage() {
     setSuccessMsg("");
 
     const payload: RegisterPayload = {
-      name: form.name,
+      fullName: form.name,
       email: form.email,
       password: form.password,
       phone: form.phone,
       role: form.role,
       isFptStudent: form.isFptStudent,
-      ...(form.isFptStudent ? { studentId: form.studentId } : {}),
+      ...(form.isFptStudent ? { studentCode: form.studentId } : {}),
     };
 
     try {
