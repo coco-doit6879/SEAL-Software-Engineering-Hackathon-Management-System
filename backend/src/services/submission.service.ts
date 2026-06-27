@@ -1,0 +1,161 @@
+import prisma from '../config/prisma';
+import { ApiError } from '../utils/ApiError';
+import { auditService } from './audit.service';
+import { CreateSubmissionInput } from '../validators/submission.validator';
+
+export const submissionService = {
+  /**
+   * Create a submission. Only team leaders can submit.
+   */
+  async createSubmission(data: CreateSubmissionInput, userId: string) {
+    // Verify round exists and is open for submissions
+    const round = await prisma.round.findUnique({ where: { id: data.roundId } });
+    if (!round) {
+      throw ApiError.notFound('Round not found.');
+    }
+    if (round.status !== 'SUBMISSION_OPEN') {
+      throw ApiError.badRequest('This round is not currently accepting submissions.');
+    }
+
+    // Verify team exists and is approved
+    const team = await prisma.team.findUnique({
+      where: { id: data.teamId },
+      include: { members: true },
+    });
+    if (!team) {
+      throw ApiError.notFound('Team not found.');
+    }
+    if (team.status !== 'APPROVED') {
+      throw ApiError.badRequest('Team must be approved before submitting.');
+    }
+
+    // Verify user is the team leader
+    const leaderMember = team.members.find(
+      (m) => m.userId === userId && m.isLeader
+    );
+    if (!leaderMember) {
+      throw ApiError.forbidden('Only the team leader can submit.');
+    }
+
+    // Check if already submitted for this round
+    const existingSubmission = await prisma.submission.findUnique({
+      where: { roundId_teamId: { roundId: data.roundId, teamId: data.teamId } },
+    });
+    if (existingSubmission) {
+      throw ApiError.conflict('Team has already submitted for this round.');
+    }
+
+    // Check submission deadline
+    if (new Date() > round.submissionDeadline) {
+      throw ApiError.badRequest('Submission deadline has passed.');
+    }
+
+    const submission = await prisma.submission.create({
+      data: {
+        roundId: data.roundId,
+        teamId: data.teamId,
+        repoUrl: data.repoUrl,
+        demoUrl: data.demoUrl,
+        documentUrl: data.documentUrl,
+      },
+      include: {
+        team: true,
+        round: true,
+      },
+    });
+    return submission;
+  },
+
+  /**
+   * Get all submissions for a round.
+   */
+  async getSubmissionsForRound(roundId: string) {
+    const submissions = await prisma.submission.findMany({
+      where: { roundId },
+      include: {
+        team: {
+          include: {
+            members: {
+              include: {
+                user: { select: { id: true, fullName: true, email: true } },
+              },
+            },
+          },
+        },
+        scores: {
+          include: {
+            judge: { select: { id: true, fullName: true } },
+            criterion: true,
+          },
+        },
+      },
+    });
+    return submissions;
+  },
+
+  /**
+   * Get a single submission by ID.
+   */
+  async getSubmissionById(id: string) {
+    const submission = await prisma.submission.findUnique({
+      where: { id },
+      include: {
+        team: {
+          include: {
+            members: {
+              include: {
+                user: { select: { id: true, fullName: true, email: true } },
+              },
+            },
+          },
+        },
+        round: { include: { criteria: true } },
+        scores: {
+          include: {
+            judge: { select: { id: true, fullName: true } },
+            criterion: true,
+          },
+        },
+      },
+    });
+    if (!submission) {
+      throw ApiError.notFound('Submission not found.');
+    }
+    return submission;
+  },
+
+  /**
+   * Disqualify a submission with reason. Creates an audit log.
+   */
+  async disqualifySubmission(id: string, reason: string, actorId: string) {
+    const submission = await prisma.submission.findUnique({
+      where: { id },
+      include: { team: true },
+    });
+    if (!submission) {
+      throw ApiError.notFound('Submission not found.');
+    }
+
+    const updated = await prisma.submission.update({
+      where: { id },
+      data: {
+        isDisqualified: true,
+        disqualificationReason: reason,
+      },
+    });
+
+    // Audit log
+    await auditService.createLog({
+      actorId,
+      actionType: 'SUBMISSION_DISQUALIFY',
+      details: JSON.stringify({
+        submissionId: id,
+        teamName: submission.team.name,
+        roundId: submission.roundId,
+      }),
+      reason,
+    });
+
+    return updated;
+  },
+};
