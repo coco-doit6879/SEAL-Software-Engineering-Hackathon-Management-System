@@ -27,7 +27,6 @@ interface RegisterPayload {
   fullName: string;
   email: string;
   password: string;
-  phone?: string;
   role: RegisterRole;
   isFptStudent: boolean;
   studentCode?: string;
@@ -116,7 +115,6 @@ export default function RegisterPage() {
       fullName: form.name,
       email: form.email,
       password: form.password,
-      phone: form.phone,
       role: form.role,
       isFptStudent: form.isFptStudent,
       ...(form.isFptStudent ? { studentCode: form.studentId } : {}),
