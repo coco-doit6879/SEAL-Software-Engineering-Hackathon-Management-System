@@ -106,21 +106,21 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const data: LoginResponse = await fetchWithAuth("/auth/login", {
+      const data: any = await fetchWithAuth("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
 
-      localStorage.setItem("seal_hms_token", data.token);
-      localStorage.setItem("seal_hms_user", JSON.stringify(data.user));
-
+      localStorage.setItem("seal_hms_token", data.data.token);
+      localStorage.setItem("seal_hms_user", JSON.stringify(data.data.user));
+      
       if (remember && !overrideEmail) {
         localStorage.setItem("seal_hms_remember", loginEmail);
       } else if (!remember) {
         localStorage.removeItem("seal_hms_remember");
       }
 
-      router.push(getRoleRedirect(data.user.role));
+      router.push(getRoleRedirect(data.data.user.role));
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Đăng nhập thất bại. Thử lại."
@@ -136,13 +136,13 @@ export default function LoginPage() {
     setEmail(acc.email);
     setPassword(acc.password);
     try {
-      const data: LoginResponse = await fetchWithAuth("/auth/login", {
+      const data: any = await fetchWithAuth("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: acc.email, password: acc.password }),
       });
-      localStorage.setItem("seal_hms_token", data.token);
-      localStorage.setItem("seal_hms_user", JSON.stringify(data.user));
-      router.push(getRoleRedirect(data.user.role));
+      localStorage.setItem("seal_hms_token", data.data.token);
+      localStorage.setItem("seal_hms_user", JSON.stringify(data.data.user));
+      router.push(getRoleRedirect(data.data.user.role));
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Đăng nhập nhanh thất bại."
