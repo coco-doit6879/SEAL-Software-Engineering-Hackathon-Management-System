@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Google Font: Inter ─────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+/* ── CSS Variables ──────────────────────────────────────────────────────────── */
+:root {
+  --bg-canvas:    #080b11;
+  --bg-surface:   #0d111b;
+  --bg-elevated:  #111827;
+  --border-muted: rgba(255, 255, 255, 0.06);
+  --border-glass: rgba(255, 255, 255, 0.10);
+  --text-primary: #f1f5f9;
+  --text-muted:   #64748b;
+  --accent-orange:#f97316;
+  --accent-amber: #f59e0b;
+}
+
+/* ── Base Reset ─────────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  min-height: 100dvh;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Utility: Glass Panel ───────────────────────────────────────────────────── */
+@layer components {
+  .glass-panel {
+    @apply bg-white/[0.03] border border-white/[0.07] backdrop-blur-sm;
+  }
+
+  .glass-panel-strong {
+    @apply bg-white/[0.06] border border-white/[0.12] backdrop-blur-md;
+  }
+
+  /* Interactive card lift on hover */
+  .hover-scale {
+    @apply transition-transform duration-200 ease-out;
+  }
+  .hover-scale:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Orange glow ring for CTA elements */
+  .brand-ring {
+    @apply ring-2 ring-orange-500/40 ring-offset-2 ring-offset-[#080b11];
+  }
+
+  /* Gradient text shortcut */
+  .gradient-text {
+    @apply bg-gradient-to-r from-white via-slate-200 to-orange-400 bg-clip-text text-transparent;
+  }
+
+  /* Page heading */
+  .page-title {
+    @apply text-2xl md:text-3xl font-bold text-white tracking-tight;
+  }
+
+  /* Section heading */
+  .section-title {
+    @apply text-lg font-semibold text-white;
+  }
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+.animate-fade-in  { animation: fadeIn  0.3s ease-out; }
+.animate-slide-up { animation: slideUp 0.3s ease-out; }
