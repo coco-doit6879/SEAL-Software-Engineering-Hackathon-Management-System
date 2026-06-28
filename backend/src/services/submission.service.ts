@@ -2,6 +2,8 @@ import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import { auditService } from './audit.service';
 import { CreateSubmissionInput } from '../validators/submission.validator';
+import { scoreService } from './score.service';
+import { emailService } from './email.service';
 
 export const submissionService = {
   /**
@@ -20,13 +22,55 @@ export const submissionService = {
     // Verify team exists and is approved
     const team = await prisma.team.findUnique({
       where: { id: data.teamId },
-      include: { members: true },
+      include: {
+        members: {
+          include: {
+            user: { select: { id: true, fullName: true, email: true } },
+          },
+        },
+        track: true,
+      },
     });
     if (!team) {
       throw ApiError.notFound('Team not found.');
     }
     if (team.status !== 'APPROVED') {
       throw ApiError.badRequest('Team must be approved before submitting.');
+    }
+
+    // Check progression rules if sequenceNumber > 1
+    if (round.sequenceNumber > 1) {
+      const previousRound = await prisma.round.findFirst({
+        where: {
+          eventId: round.eventId,
+          sequenceNumber: round.sequenceNumber - 1,
+        },
+      });
+
+      if (!previousRound) {
+        throw ApiError.notFound('Previous round in the sequence was not found.');
+      }
+
+      if (previousRound.status !== 'COMPLETED') {
+        throw ApiError.badRequest(
+          `The previous round "${previousRound.name}" must be marked as COMPLETED before you can submit to this round.`
+        );
+      }
+
+      const leaderboard = await scoreService.getLeaderboard(previousRound.id);
+      const trackLeaderboard = leaderboard.filter(
+        (entry) => entry.team.trackName === team.track.name
+      );
+
+      const teamRankIndex = trackLeaderboard.findIndex(
+        (entry) => entry.team.id === team.id
+      );
+
+      if (teamRankIndex === -1 || teamRankIndex >= previousRound.topNToProgress) {
+        throw ApiError.forbidden(
+          `Your team did not progress to this round. Only the top ${previousRound.topNToProgress} teams in track "${team.track.name}" can submit.`
+        );
+      }
     }
 
     // Verify user is the team leader
@@ -63,6 +107,19 @@ export const submissionService = {
         round: true,
       },
     });
+
+    // Send email confirmation notification to team leader
+    if (leaderMember && leaderMember.user.email) {
+      emailService.sendSubmissionConfirmationEmail(
+        leaderMember.user.email,
+        leaderMember.user.fullName,
+        team.name,
+        round.name,
+        submission.repoUrl,
+        submission.demoUrl
+      ).catch((err) => console.error('Failed to send submission confirmation email:', err));
+    }
+
     return submission;
   },
 

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma';
 import { ApiError } from '../utils/ApiError';
 import { auditService } from './audit.service';
+import { emailService } from './email.service';
 import { CreateTeamInput, UpdateTeamStatusInput } from '../validators/team.validator';
 
 export const teamService = {
@@ -86,7 +87,17 @@ export const teamService = {
    * Update team status (approve/disqualify). Creates an audit log.
    */
   async updateTeamStatus(id: string, data: UpdateTeamStatusInput, actorId: string) {
-    const team = await prisma.team.findUnique({ where: { id } });
+    const team = await prisma.team.findUnique({ 
+      where: { id },
+      include: {
+        members: {
+          include: {
+            user: { select: { fullName: true, email: true } }
+          }
+        }
+      }
+    });
+    
     if (!team) {
       throw ApiError.notFound('Team not found.');
     }
@@ -106,6 +117,18 @@ export const teamService = {
       details: JSON.stringify({ teamId: id, teamName: team.name, newStatus: data.status }),
       reason: data.reasonBlocked || `Team ${data.status.toLowerCase()}`,
     });
+
+    // Send email notification to team leader
+    const leaderMember = team.members.find((m) => m.isLeader);
+    if (leaderMember && leaderMember.user.email) {
+      emailService.sendTeamStatusEmail(
+        leaderMember.user.email,
+        leaderMember.user.fullName,
+        team.name,
+        data.status,
+        data.reasonBlocked || undefined
+      ).catch((err) => console.error('Failed to send status update email:', err));
+    }
 
     return updated;
   },

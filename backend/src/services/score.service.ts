@@ -30,12 +30,11 @@ export const scoreService = {
       throw ApiError.forbidden('You are not assigned as a judge for this round.');
     }
 
-    // Verify round is in EVALUATION or CALIBRATION status
-    if (
-      submission.round.status !== 'EVALUATION' &&
-      submission.round.status !== 'CALIBRATION'
-    ) {
-      throw ApiError.badRequest('Round is not in evaluation mode.');
+    // Verify round is strictly in EVALUATION status
+    if (submission.round.status !== 'EVALUATION') {
+      throw ApiError.badRequest(
+        'Scores can only be submitted or updated when the round is in EVALUATION status.'
+      );
     }
 
     // Validate that all criteria IDs exist in this round
