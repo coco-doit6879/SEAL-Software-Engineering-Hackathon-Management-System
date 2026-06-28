@@ -41,28 +41,34 @@ type RoundStatus =
 interface JudgeRound {
   id: string;
   name: string;
-  roundNumber: number;
+  sequenceNumber: number;
   status: RoundStatus;
+  eventId?: string;
   eventName?: string;
+  // criteria come directly from /rounds/event/:eventId
+  criteria?: Criterion[];
+  judges?: Array<{
+    userId: string;
+    user: { id: string; fullName: string; email: string };
+  }>;
 }
 
 interface CalibrationSample {
   id: string;
-  projectName: string;
+  title: string;
   description?: string;
   repoUrl?: string;
   demoUrl?: string;
   referenceScore?: number;
-  criteria: Criterion[];
 }
 
 interface Criterion {
   id: string;
   name: string;
   description?: string;
-  maxScore: number;
+  maxPoints: number;
   weight: number;
-  type: "TECHNICAL" | "PRESENTATION" | "INNOVATION" | "OTHER";
+  isTechnical: boolean;
 }
 
 interface Submission {
@@ -73,12 +79,13 @@ interface Submission {
   demoUrl?: string;
   submittedAt: string;
   myScoreStatus: "NOT_SCORED" | "SCORED";
+  team?: { name: string };
 }
 
 interface CriterionScore {
   criterionId: string;
-  score: number | "";
-  comment: string;
+  scoreValue: number | "";  // backend uses scoreValue
+  comments: string;          // backend uses comments
 }
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
@@ -104,30 +111,7 @@ const TOAST_ICONS: Record<ToastType, React.ReactNode> = {
   info: <Info className="w-4 h-4 flex-shrink-0" />,
 };
 
-// ─── Criterion type badge ─────────────────────────────────────────────────────
-const CRITERION_TYPE_MAP: Record<
-  Criterion["type"],
-  { label: string; cls: string }
-> = {
-  TECHNICAL: {
-    label: "Kỹ thuật",
-    cls: "bg-blue-500/15 text-blue-400 border-blue-500/25",
-  },
-  PRESENTATION: {
-    label: "Thuyết trình",
-    cls: "bg-purple-500/15 text-purple-400 border-purple-500/25",
-  },
-  INNOVATION: {
-    label: "Sáng tạo",
-    cls: "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  },
-  OTHER: {
-    label: "Khác",
-    cls: "bg-slate-500/15 text-slate-400 border-slate-500/25",
-  },
-};
-
-// ─── Score Slider ─────────────────────────────────────────────────────────────
+// ─── Score Input ──────────────────────────────────────────────────────────────
 function ScoreInput({
   value,
   max,
@@ -184,7 +168,7 @@ function ScoreInput({
           style={{ width: `${pct}%` }}
         />
       </div>
-      {/* Tick marks */}
+      {/* Range slider */}
       {!disabled && (
         <input
           type="range"
@@ -239,7 +223,11 @@ export default function JudgeDashboard() {
   const router = useRouter();
 
   // ── Core state ──
-  const [judgeInfo, setJudgeInfo] = useState<{ name: string; email: string } | null>(null);
+  const [judgeInfo, setJudgeInfo] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
   const [rounds, setRounds] = useState<JudgeRound[]>([]);
   const [selectedRound, setSelectedRound] = useState<JudgeRound | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -251,6 +239,7 @@ export default function JudgeDashboard() {
   const [calibGlobalComment, setCalibGlobalComment] = useState("");
   const [calibLoading, setCalibLoading] = useState(false);
   const [calibSubmitting, setCalibSubmitting] = useState(false);
+  const [calibCriteria, setCalibCriteria] = useState<Criterion[]>([]);
 
   // ── Evaluation state ──
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -268,17 +257,47 @@ export default function JudgeDashboard() {
   }
 
   // ── Load judge info & rounds ──
+  // Strategy:
+  // 1. GET /auth/me → get judge id
+  // 2. GET /events → iterate events, GET /rounds/event/:id → filter rounds where judges[].userId === judgeId
   const loadRounds = useCallback(async () => {
     setPageLoading(true);
     try {
-      const me = await fetchWithAuth("/users/me");
-      setJudgeInfo({ name: me.name, email: me.email });
+      // Step 1: Get current user via /auth/me
+      const meRes = await fetchWithAuth("/auth/me");
+      const me = meRes.data?.user ?? meRes.user ?? meRes;
+      const judgeId = me.id;
+      setJudgeInfo({ id: judgeId, name: me.fullName ?? me.name, email: me.email });
 
-      const data = await fetchWithAuth("/rounds/my-assignments");
-      const list: JudgeRound[] = Array.isArray(data)
-        ? data
-        : data.rounds ?? [];
-      setRounds(list);
+      // Step 2: Get all events then fetch rounds per event
+      const eventsRes = await fetchWithAuth("/events");
+      const events: Array<{ id: string; name: string }> =
+        eventsRes.data ?? eventsRes;
+
+      if (!Array.isArray(events) || events.length === 0) {
+        setRounds([]);
+        return;
+      }
+
+      const allJudgeRounds: JudgeRound[] = [];
+      for (const event of events) {
+        try {
+          const roundsRes = await fetchWithAuth(`/rounds/event/${event.id}`);
+          const eventRounds: JudgeRound[] = roundsRes.data ?? roundsRes;
+          if (!Array.isArray(eventRounds)) continue;
+
+          // Only include rounds where this judge is assigned
+          const myRounds = eventRounds.filter((r) =>
+            r.judges?.some((j) => j.userId === judgeId)
+          );
+          myRounds.forEach((r) => {
+            allJudgeRounds.push({ ...r, eventName: event.name });
+          });
+        } catch {
+          // Skip events we can't read
+        }
+      }
+      setRounds(allJudgeRounds);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Lỗi tải dữ liệu.";
       if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
@@ -293,10 +312,20 @@ export default function JudgeDashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem("seal_hms_token");
-    if (!token) { router.push("/auth/login"); return; }
+    if (!token) {
+      router.push("/auth/login");
+      return;
+    }
     const cached = localStorage.getItem("seal_hms_user");
     if (cached) {
-      try { const u = JSON.parse(cached); setJudgeInfo({ name: u.name, email: u.email }); } catch { /* ignore */ }
+      try {
+        const u = JSON.parse(cached);
+        setJudgeInfo({
+          id: u.id ?? "",
+          name: u.fullName ?? u.name,
+          email: u.email,
+        });
+      } catch { /* ignore */ }
     }
     loadRounds();
   }, [loadRounds, router]);
@@ -307,15 +336,30 @@ export default function JudgeDashboard() {
       setCalibSample(null);
       setCalibScores([]);
       setCalibGlobalComment("");
+      setCalibCriteria([]);
       return;
     }
+
+    // Use criteria from the round data (already fetched)
+    const criteria = selectedRound.criteria ?? [];
+    setCalibCriteria(criteria);
+    setCalibScores(
+      criteria.map((c) => ({ criterionId: c.id, scoreValue: "", comments: "" }))
+    );
+
+    // Fetch calibration sample for this round
     setCalibLoading(true);
-    fetchWithAuth(`/calibration/rounds/${selectedRound.id}/sample`)
-      .then((data: CalibrationSample) => {
-        setCalibSample(data);
-        setCalibScores(
-          data.criteria.map((c) => ({ criterionId: c.id, score: "", comment: "" }))
-        );
+    fetchWithAuth(`/calibration/samples/round/${selectedRound.id}`)
+      .then((data) => {
+        // Backend returns an array — take the first sample
+        const samples: CalibrationSample[] = Array.isArray(data)
+          ? data
+          : data.data ?? [];
+        if (samples.length > 0) {
+          setCalibSample(samples[0]);
+        } else {
+          setCalibSample(null);
+        }
       })
       .catch((err: unknown) => {
         addToast(
@@ -336,10 +380,20 @@ export default function JudgeDashboard() {
       return;
     }
     setEvalLoading(true);
-    fetchWithAuth(`/submissions/rounds/${selectedRound.id}/judge`)
+    // Correct endpoint: /submissions/round/:roundId (NOT /rounds/:id/judge)
+    fetchWithAuth(`/submissions/round/${selectedRound.id}`)
       .then((data) => {
-        const list: Submission[] = Array.isArray(data) ? data : data.submissions ?? [];
+        const raw: any[] = Array.isArray(data) ? data : data.data ?? [];
+        // Normalize: teamName may come from team.name
+        const list: Submission[] = raw.map((s) => ({
+          ...s,
+          teamName: s.teamName ?? s.team?.name ?? "Unnamed Team",
+          myScoreStatus: s.myScoreStatus ?? "NOT_SCORED",
+        }));
         setSubmissions(list);
+
+        // Set criteria from round data
+        setEvalCriteria(selectedRound.criteria ?? []);
       })
       .catch((err: unknown) =>
         addToast("error", err instanceof Error ? err.message : "Lỗi tải danh sách bài nộp.")
@@ -348,20 +402,14 @@ export default function JudgeDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRound?.id, selectedRound?.status]);
 
-  // ── Load criteria + existing scores when submission selected ──
+  // ── When submission selected, init eval scores from round criteria ──
   useEffect(() => {
-    if (!selectedSub || !selectedRound) return;
-    setEvalLoading(true);
-    fetchWithAuth(`/scores/submissions/${selectedSub.id}/criteria`)
-      .then((data) => {
-        const criteria: Criterion[] = Array.isArray(data) ? data : data.criteria ?? [];
-        setEvalCriteria(criteria);
-        setEvalScores(criteria.map((c) => ({ criterionId: c.id, score: "", comment: "" })));
-      })
-      .catch((err: unknown) =>
-        addToast("error", err instanceof Error ? err.message : "Lỗi tải tiêu chí chấm điểm.")
-      )
-      .finally(() => setEvalLoading(false));
+    if (!selectedSub) return;
+    const criteria = selectedRound?.criteria ?? [];
+    setEvalCriteria(criteria);
+    setEvalScores(
+      criteria.map((c) => ({ criterionId: c.id, scoreValue: "", comments: "" }))
+    );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSub?.id]);
 
@@ -371,15 +419,22 @@ export default function JudgeDashboard() {
     router.push("/auth/login");
   }
 
-  // ── Update a single calibration criterion score ──
-  function updateCalibScore(idx: number, field: "score" | "comment", val: number | string) {
+  // ── Score update helpers ──
+  function updateCalibScore(
+    idx: number,
+    field: "scoreValue" | "comments",
+    val: number | string
+  ) {
     setCalibScores((prev) =>
       prev.map((s, i) => (i === idx ? { ...s, [field]: val } : s))
     );
   }
 
-  // ── Update a single evaluation criterion score ──
-  function updateEvalScore(idx: number, field: "score" | "comment", val: number | string) {
+  function updateEvalScore(
+    idx: number,
+    field: "scoreValue" | "comments",
+    val: number | string
+  ) {
     setEvalScores((prev) =>
       prev.map((s, i) => (i === idx ? { ...s, [field]: val } : s))
     );
@@ -392,12 +447,18 @@ export default function JudgeDashboard() {
 
     // Validate
     for (let i = 0; i < calibScores.length; i++) {
-      if (calibScores[i].score === "") {
-        addToast("warning", `Vui lòng nhập điểm cho tiêu chí "${calibSample.criteria[i].name}".`);
+      if (calibScores[i].scoreValue === "") {
+        addToast(
+          "warning",
+          `Vui lòng nhập điểm cho tiêu chí "${calibCriteria[i]?.name}".`
+        );
         return;
       }
-      if (!calibScores[i].comment.trim()) {
-        addToast("warning", `Bình luận cho tiêu chí "${calibSample.criteria[i].name}" là bắt buộc.`);
+      if (!calibScores[i].comments.trim()) {
+        addToast(
+          "warning",
+          `Bình luận cho tiêu chí "${calibCriteria[i]?.name}" là bắt buộc.`
+        );
         return;
       }
     }
@@ -408,10 +469,17 @@ export default function JudgeDashboard() {
 
     setCalibSubmitting(true);
     try {
+      // POST /calibration/samples/:sampleId/scores
+      // Body: { scores: [{criterionId, scoreValue, comments}] }
+      // Note: backend does not support globalComment in this version — we include it anyway
       await fetchWithAuth(`/calibration/samples/${calibSample.id}/scores`, {
         method: "POST",
         body: JSON.stringify({
-          scores: calibScores.map((s) => ({ criterionId: s.criterionId, score: s.score, comment: s.comment })),
+          scores: calibScores.map((s) => ({
+            criterionId: s.criterionId,
+            scoreValue: s.scoreValue,
+            comments: s.comments,
+          })),
           globalComment: calibGlobalComment,
         }),
       });
@@ -429,24 +497,35 @@ export default function JudgeDashboard() {
     if (!selectedSub) return;
 
     for (let i = 0; i < evalScores.length; i++) {
-      if (evalScores[i].score === "") {
-        addToast("warning", `Vui lòng nhập điểm cho tiêu chí "${evalCriteria[i]?.name}".`);
+      if (evalScores[i].scoreValue === "") {
+        addToast(
+          "warning",
+          `Vui lòng nhập điểm cho tiêu chí "${evalCriteria[i]?.name}".`
+        );
         return;
       }
     }
 
     setEvalSubmitting(true);
     try {
-      await fetchWithAuth(`/scores/submissions/${selectedSub.id}`, {
+      // POST /scores/submission/:submissionId (singular "submission")
+      // Body: { scores: [{criterionId, scoreValue, comments}] }
+      await fetchWithAuth(`/scores/submission/${selectedSub.id}`, {
         method: "POST",
         body: JSON.stringify({
-          scores: evalScores.map((s) => ({ criterionId: s.criterionId, score: s.score, comment: s.comment })),
+          scores: evalScores.map((s) => ({
+            criterionId: s.criterionId,
+            scoreValue: s.scoreValue,
+            comments: s.comments,
+          })),
         }),
       });
       addToast("success", `Điểm của đội "${selectedSub.teamName}" đã được ghi nhận.`);
       // Mark as scored in list
       setSubmissions((prev) =>
-        prev.map((s) => s.id === selectedSub.id ? { ...s, myScoreStatus: "SCORED" } : s)
+        prev.map((s) =>
+          s.id === selectedSub.id ? { ...s, myScoreStatus: "SCORED" } : s
+        )
       );
       setSelectedSub(null);
     } catch (err: unknown) {
@@ -521,18 +600,26 @@ export default function JudgeDashboard() {
             </div>
             <div>
               <span className="font-bold text-white text-sm">SEAL-HMS</span>
-              <span className="hidden sm:inline text-slate-500 text-xs ml-2">· Giám khảo</span>
+              <span className="hidden sm:inline text-slate-500 text-xs ml-2">
+                · Giám khảo
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={loadRounds} title="Làm mới" className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+            <button
+              onClick={loadRounds}
+              title="Làm mới"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all"
+            >
               <RefreshCw className="w-4 h-4" />
             </button>
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50">
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-[10px] font-bold text-white">
                 {judgeInfo?.name?.[0]?.toUpperCase() || "J"}
               </div>
-              <span className="text-sm text-slate-300 font-medium">{judgeInfo?.name || "Giám khảo"}</span>
+              <span className="text-sm text-slate-300 font-medium">
+                {judgeInfo?.name || "Giám khảo"}
+              </span>
             </div>
             <button
               onClick={handleLogout}
@@ -560,14 +647,28 @@ export default function JudgeDashboard() {
               rounds.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => { setSelectedRound(r); setSelectedSub(null); }}
+                  onClick={() => {
+                    setSelectedRound(r);
+                    setSelectedSub(null);
+                  }}
                   className={`w-full flex flex-col gap-1.5 px-3 py-3 rounded-xl text-left border transition-all duration-200 ${
                     selectedRound?.id === r.id
                       ? "border-orange-500/40 bg-orange-500/8"
                       : "border-transparent hover:border-slate-700/60 hover:bg-slate-800/30"
                   }`}
                 >
-                  <span className={`text-sm font-medium ${selectedRound?.id === r.id ? "text-orange-300" : "text-slate-300"}`}>
+                  <span
+                    className={`text-xs text-slate-500 font-medium`}
+                  >
+                    {r.eventName}
+                  </span>
+                  <span
+                    className={`text-sm font-medium ${
+                      selectedRound?.id === r.id
+                        ? "text-orange-300"
+                        : "text-slate-300"
+                    }`}
+                  >
                     {r.name}
                   </span>
                   <RoundStatusBadge status={r.status} />
@@ -582,12 +683,17 @@ export default function JudgeDashboard() {
 
           {/* Mobile round selector */}
           <div className="lg:hidden">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Chọn vòng</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Chọn vòng
+            </p>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {rounds.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => { setSelectedRound(r); setSelectedSub(null); }}
+                  onClick={() => {
+                    setSelectedRound(r);
+                    setSelectedSub(null);
+                  }}
                   className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-all ${
                     selectedRound?.id === r.id
                       ? "border-orange-500/40 bg-orange-500/8 text-orange-300"
@@ -727,7 +833,6 @@ export default function JudgeDashboard() {
                 </div>
               </div>
 
-              {/* Loading calibration sample */}
               {calibLoading && (
                 <div className="flex items-center gap-3 px-6 py-8 justify-center">
                   <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
@@ -768,7 +873,9 @@ export default function JudgeDashboard() {
                             Dự án mẫu chấm thử
                           </span>
                         </div>
-                        <h3 className="text-xl font-bold text-white">{calibSample.projectName}</h3>
+                        <h3 className="text-xl font-bold text-white">
+                          {calibSample.title}
+                        </h3>
                         {calibSample.description && (
                           <p className="text-slate-400 text-sm mt-1 max-w-xl">
                             {calibSample.description}
@@ -814,89 +921,102 @@ export default function JudgeDashboard() {
 
                   {/* Calibration scoring form */}
                   <form onSubmit={handleCalibSubmit} className="p-6 space-y-6">
-                    <div className="space-y-5">
-                      {calibSample.criteria.map((criterion, idx) => {
-                        const cs = calibScores[idx];
-                        const typeMeta = CRITERION_TYPE_MAP[criterion.type];
-                        return (
-                          <div
-                            key={criterion.id}
-                            className="rounded-xl p-5 border border-white/[0.05] space-y-4"
-                            style={{ background: "rgba(30,41,59,0.4)" }}
-                          >
-                            {/* Criterion header */}
-                            <div className="flex items-start justify-between gap-3 flex-wrap">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap mb-1">
-                                  <span className="text-sm font-semibold text-white">
-                                    {idx + 1}. {criterion.name}
+                    {calibCriteria.length === 0 ? (
+                      <p className="text-slate-500 text-sm text-center py-4">
+                        Vòng này chưa có tiêu chí chấm điểm nào.
+                      </p>
+                    ) : (
+                      <div className="space-y-5">
+                        {calibCriteria.map((criterion, idx) => {
+                          const cs = calibScores[idx];
+                          return (
+                            <div
+                              key={criterion.id}
+                              className="rounded-xl p-5 border border-white/[0.05] space-y-4"
+                              style={{ background: "rgba(30,41,59,0.4)" }}
+                            >
+                              {/* Criterion header */}
+                              <div className="flex items-start justify-between gap-3 flex-wrap">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <span className="text-sm font-semibold text-white">
+                                      {idx + 1}. {criterion.name}
+                                    </span>
+                                    <span
+                                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                        criterion.isTechnical
+                                          ? "bg-blue-500/15 text-blue-400 border-blue-500/25"
+                                          : "bg-amber-500/15 text-amber-400 border-amber-500/25"
+                                      }`}
+                                    >
+                                      {criterion.isTechnical ? "Kỹ thuật" : "Khác"}
+                                    </span>
+                                  </div>
+                                  {criterion.description && (
+                                    <p className="text-xs text-slate-500">
+                                      {criterion.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex gap-2 text-xs text-slate-500 flex-shrink-0">
+                                  <span className="px-2 py-1 rounded-lg bg-slate-700/40 border border-slate-700/50">
+                                    Trọng số:{" "}
+                                    <span className="font-semibold text-slate-300">
+                                      {criterion.weight}%
+                                    </span>
                                   </span>
-                                  <span
-                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${typeMeta.cls}`}
-                                  >
-                                    {typeMeta.label}
+                                  <span className="px-2 py-1 rounded-lg bg-slate-700/40 border border-slate-700/50">
+                                    Max:{" "}
+                                    <span className="font-semibold text-slate-300">
+                                      {criterion.maxPoints}
+                                    </span>
                                   </span>
                                 </div>
-                                {criterion.description && (
-                                  <p className="text-xs text-slate-500">{criterion.description}</p>
-                                )}
                               </div>
-                              <div className="flex gap-2 text-xs text-slate-500 flex-shrink-0">
-                                <span className="px-2 py-1 rounded-lg bg-slate-700/40 border border-slate-700/50">
-                                  Trọng số:{" "}
-                                  <span className="font-semibold text-slate-300">
-                                    {criterion.weight}%
-                                  </span>
-                                </span>
-                                <span className="px-2 py-1 rounded-lg bg-slate-700/40 border border-slate-700/50">
-                                  Max:{" "}
-                                  <span className="font-semibold text-slate-300">
-                                    {criterion.maxScore}
-                                  </span>
-                                </span>
+
+                              {/* Score input */}
+                              <div>
+                                <p className="text-xs font-medium text-slate-400 mb-2">
+                                  Điểm số <span className="text-orange-500">*</span>
+                                </p>
+                                <ScoreInput
+                                  id={`calib-score-${criterion.id}`}
+                                  value={cs?.scoreValue ?? ""}
+                                  max={criterion.maxPoints}
+                                  disabled={false}
+                                  onChange={(v) => updateCalibScore(idx, "scoreValue", v)}
+                                />
+                              </div>
+
+                              {/* Comment — REQUIRED */}
+                              <div>
+                                <label
+                                  htmlFor={`calib-comment-${criterion.id}`}
+                                  className="flex items-center gap-1.5 text-xs font-medium text-slate-400 mb-2"
+                                >
+                                  <MessageSquare className="w-3 h-3" />
+                                  Bình luận / Nhận xét{" "}
+                                  <span className="text-red-400">* (bắt buộc)</span>
+                                </label>
+                                <textarea
+                                  id={`calib-comment-${criterion.id}`}
+                                  rows={2}
+                                  value={cs?.comments || ""}
+                                  onChange={(e) =>
+                                    updateCalibScore(idx, "comments", e.target.value)
+                                  }
+                                  placeholder="Nhận xét chi tiết về tiêu chí này..."
+                                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-600
+                                    bg-slate-800/60 border border-slate-700/60 resize-none
+                                    focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30
+                                    transition-all duration-200"
+                                />
                               </div>
                             </div>
-
-                            {/* Score input */}
-                            <div>
-                              <p className="text-xs font-medium text-slate-400 mb-2">
-                                Điểm số <span className="text-orange-500">*</span>
-                              </p>
-                              <ScoreInput
-                                id={`calib-score-${criterion.id}`}
-                                value={cs?.score ?? ""}
-                                max={criterion.maxScore}
-                                disabled={false}
-                                onChange={(v) => updateCalibScore(idx, "score", v)}
-                              />
-                            </div>
-
-                            {/* Comment — REQUIRED */}
-                            <div>
-                              <label
-                                htmlFor={`calib-comment-${criterion.id}`}
-                                className="flex items-center gap-1.5 text-xs font-medium text-slate-400 mb-2"
-                              >
-                                <MessageSquare className="w-3 h-3" />
-                                Bình luận / Nhận xét{" "}
-                                <span className="text-red-400">* (bắt buộc)</span>
-                              </label>
-                              <textarea
-                                id={`calib-comment-${criterion.id}`}
-                                rows={2}
-                                value={cs?.comment || ""}
-                                onChange={(e) => updateCalibScore(idx, "comment", e.target.value)}
-                                placeholder="Nhận xét chi tiết về tiêu chí này..."
-                                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-600
-                                  bg-slate-800/60 border border-slate-700/60 resize-none
-                                  focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30
-                                  transition-all duration-200"
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Global comment */}
                     <div>
@@ -929,7 +1049,7 @@ export default function JudgeDashboard() {
                       <button
                         type="submit"
                         id="calib-submit-btn"
-                        disabled={calibSubmitting}
+                        disabled={calibSubmitting || calibCriteria.length === 0}
                         className="flex items-center gap-2.5 px-6 py-3 rounded-xl font-semibold text-white text-sm
                           bg-gradient-to-r from-purple-600 to-indigo-500
                           hover:from-purple-500 hover:to-indigo-400
@@ -1018,7 +1138,13 @@ export default function JudgeDashboard() {
                           </div>
 
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-semibold truncate ${selectedSub?.id === sub.id ? "text-orange-300" : "text-slate-200"}`}>
+                            <p
+                              className={`text-sm font-semibold truncate ${
+                                selectedSub?.id === sub.id
+                                  ? "text-orange-300"
+                                  : "text-slate-200"
+                              }`}
+                            >
                               {sub.teamName}
                             </p>
                             <p className="text-xs text-slate-600 mt-0.5">
@@ -1081,8 +1207,12 @@ export default function JudgeDashboard() {
                             <User className="w-4 h-4 text-orange-400" />
                           </div>
                           <div>
-                            <p className="font-bold text-white text-sm">{selectedSub.teamName}</p>
-                            <p className="text-xs text-slate-500">Đội ID: {selectedSub.teamId}</p>
+                            <p className="font-bold text-white text-sm">
+                              {selectedSub.teamName}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Đội ID: {selectedSub.teamId}
+                            </p>
                           </div>
                         </div>
                         <button
@@ -1097,14 +1227,22 @@ export default function JudgeDashboard() {
                       {(selectedSub.repoUrl || selectedSub.demoUrl) && (
                         <div className="px-5 py-3 border-b border-white/[0.04] flex gap-4 flex-wrap">
                           {selectedSub.repoUrl && (
-                            <a href={selectedSub.repoUrl} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                            <a
+                              href={selectedSub.repoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            >
                               <Github className="w-3 h-3" /> Repository
                             </a>
                           )}
                           {selectedSub.demoUrl && (
-                            <a href={selectedSub.demoUrl} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                            <a
+                              href={selectedSub.demoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            >
                               <Globe className="w-3 h-3" /> Demo
                             </a>
                           )}
@@ -1121,13 +1259,14 @@ export default function JudgeDashboard() {
                         <form onSubmit={handleEvalSubmit} className="p-5 space-y-4">
                           {evalCriteria.length === 0 && (
                             <div className="py-6 text-center">
-                              <p className="text-slate-500 text-sm">Không có tiêu chí chấm điểm nào.</p>
+                              <p className="text-slate-500 text-sm">
+                                Không có tiêu chí chấm điểm nào.
+                              </p>
                             </div>
                           )}
 
                           {evalCriteria.map((criterion, idx) => {
                             const es = evalScores[idx];
-                            const typeMeta = CRITERION_TYPE_MAP[criterion.type];
                             return (
                               <div
                                 key={criterion.id}
@@ -1140,39 +1279,51 @@ export default function JudgeDashboard() {
                                     <span className="text-sm font-semibold text-white">
                                       {idx + 1}. {criterion.name}
                                     </span>
-                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${typeMeta.cls}`}>
-                                      {typeMeta.label}
+                                    <span
+                                      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                        criterion.isTechnical
+                                          ? "bg-blue-500/15 text-blue-400 border-blue-500/25"
+                                          : "bg-amber-500/15 text-amber-400 border-amber-500/25"
+                                      }`}
+                                    >
+                                      {criterion.isTechnical ? "Kỹ thuật" : "Khác"}
                                     </span>
                                   </div>
                                   <div className="flex gap-1.5 text-[10px] text-slate-500">
                                     <span className="px-1.5 py-0.5 rounded bg-slate-700/50 border border-slate-700/50">
-                                      Trọng số: <b className="text-slate-300">{criterion.weight}%</b>
+                                      Trọng số:{" "}
+                                      <b className="text-slate-300">{criterion.weight}%</b>
                                     </span>
                                     <span className="px-1.5 py-0.5 rounded bg-slate-700/50 border border-slate-700/50">
-                                      Max: <b className="text-slate-300">{criterion.maxScore}</b>
+                                      Max:{" "}
+                                      <b className="text-slate-300">{criterion.maxPoints}</b>
                                     </span>
                                   </div>
                                 </div>
 
                                 {criterion.description && (
-                                  <p className="text-xs text-slate-500">{criterion.description}</p>
+                                  <p className="text-xs text-slate-500">
+                                    {criterion.description}
+                                  </p>
                                 )}
 
                                 {/* Score */}
                                 <ScoreInput
                                   id={`eval-score-${criterion.id}`}
-                                  value={es?.score ?? ""}
-                                  max={criterion.maxScore}
+                                  value={es?.scoreValue ?? ""}
+                                  max={criterion.maxPoints}
                                   disabled={false}
-                                  onChange={(v) => updateEvalScore(idx, "score", v)}
+                                  onChange={(v) => updateEvalScore(idx, "scoreValue", v)}
                                 />
 
                                 {/* Optional comment */}
                                 <textarea
                                   id={`eval-comment-${criterion.id}`}
                                   rows={2}
-                                  value={es?.comment || ""}
-                                  onChange={(e) => updateEvalScore(idx, "comment", e.target.value)}
+                                  value={es?.comments || ""}
+                                  onChange={(e) =>
+                                    updateEvalScore(idx, "comments", e.target.value)
+                                  }
                                   placeholder="Nhận xét (không bắt buộc)..."
                                   className="w-full px-3 py-2 rounded-lg text-xs text-white placeholder-slate-600
                                     bg-slate-800/50 border border-slate-700/50 resize-none
@@ -1188,7 +1339,9 @@ export default function JudgeDashboard() {
                             <div className="flex items-center justify-between pt-3 border-t border-white/[0.05]">
                               <div className="text-sm text-slate-400">
                                 Tổng tiêu chí:{" "}
-                                <span className="font-semibold text-white">{evalCriteria.length}</span>
+                                <span className="font-semibold text-white">
+                                  {evalCriteria.length}
+                                </span>
                               </div>
                               <button
                                 type="submit"
@@ -1224,4 +1377,3 @@ export default function JudgeDashboard() {
     </div>
   );
 }
-

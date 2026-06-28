@@ -37,23 +37,36 @@ type RoundStatus =
 
 interface UserMe {
   id: string;
-  name: string;
+  fullName: string;
   email: string;
   role: string;
-  team?: {
+}
+
+interface TeamMember {
+  id: string;
+  userId: string;
+  isLeader: boolean;
+  user: { id: string; fullName: string; email: string };
+}
+
+interface TeamData {
+  id: string;
+  name: string;
+  status: TeamStatus;
+  reasonBlocked?: string;
+  isLeader: boolean;
+  members: TeamMember[];
+  track?: {
     id: string;
     name: string;
-    status: TeamStatus;
-    disqualificationReason?: string;
-    isLeader: boolean;
-    members: { id: string; name: string; email: string; isLeader: boolean }[];
+    event?: { id: string; name: string };
   };
 }
 
 interface Round {
   id: string;
   name: string;
-  roundNumber: number;
+  sequenceNumber: number;
   status: RoundStatus;
   submissionDeadline?: string;
   eventName?: string;
@@ -153,6 +166,7 @@ export default function StudentDashboard() {
 
   // ── State ──
   const [user, setUser] = useState<UserMe | null>(null);
+  const [team, setTeam] = useState<TeamData | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [selectedRound, setSelectedRound] = useState<Round | null>(null);
   const [loading, setLoading] = useState(true);
@@ -175,19 +189,61 @@ export default function StudentDashboard() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }
 
-  // ── Fetch user & rounds ──
+  // ── Fetch user, team & rounds ──
+  // Strategy:
+  // 1. GET /auth/me -> get current user info
+  // 2. GET /teams/my-team -> get team info (includes track.event.id)
+  // 3. GET /rounds/event/:eventId -> get rounds for student's event
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const me: UserMe = await fetchWithAuth("/users/me");
-      setUser(me);
+      // Step 1: Get current user
+      const meRes = await fetchWithAuth("/auth/me");
+      const currentUser: UserMe = meRes.data?.user ?? meRes.user ?? meRes;
+      setUser(currentUser);
 
-      // Fetch rounds for the active event
+      // Step 2: Get team membership
+      let teamData: TeamData | null = null;
+      let eventId: string | null = null;
+
       try {
-        const roundsData = await fetchWithAuth("/rounds/my-event");
-        setRounds(Array.isArray(roundsData) ? roundsData : roundsData.rounds || []);
+        const teamsRes = await fetchWithAuth("/teams/my-team");
+        const teamsList: TeamData[] = teamsRes.data ?? teamsRes;
+        if (Array.isArray(teamsList) && teamsList.length > 0) {
+          teamData = teamsList[0];
+          eventId = teamData.track?.event?.id ?? null;
+          setTeam(teamData);
+        } else {
+          setTeam(null);
+        }
       } catch {
-        // If endpoint not available yet, use empty — backend may vary
+        setTeam(null);
+      }
+
+      // Step 3: Get rounds for the event
+      if (eventId) {
+        try {
+          const roundsRes = await fetchWithAuth(`/rounds/event/${eventId}`);
+          const roundsList: Round[] = roundsRes.data ?? roundsRes;
+
+          // Enrich rounds with mySubmission if team exists
+          if (teamData && Array.isArray(roundsList)) {
+            const enriched = roundsList.map((r) => ({
+              ...r,
+              eventName: teamData!.track?.event?.name,
+              // Backend's round includes submissions array — find team's submission
+              mySubmission: (r as any).submissions?.find(
+                (s: any) => s.teamId === teamData!.id
+              ) ?? undefined,
+            }));
+            setRounds(enriched);
+          } else {
+            setRounds(Array.isArray(roundsList) ? roundsList : []);
+          }
+        } catch {
+          setRounds([]);
+        }
+      } else {
         setRounds([]);
       }
     } catch (err: unknown) {
@@ -204,17 +260,16 @@ export default function StudentDashboard() {
   }, [router]);
 
   useEffect(() => {
-    // Guard: check token
     const token = localStorage.getItem("seal_hms_token");
     if (!token) {
       router.push("/auth/login");
       return;
     }
-    // Hydrate cached user immediately
     const cached = localStorage.getItem("seal_hms_user");
     if (cached) {
       try {
-        setUser(JSON.parse(cached));
+        const u = JSON.parse(cached);
+        setUser({ id: u.id, fullName: u.fullName ?? u.name, email: u.email, role: u.role });
       } catch { /* ignore */ }
     }
     loadData();
@@ -254,7 +309,7 @@ export default function StudentDashboard() {
   // ── Submit handler ──
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedRound || !user?.team) return;
+    if (!selectedRound || !team) return;
 
     if (!repoUrl.trim()) {
       addToast("warning", "Vui lòng nhập Link Repository (GitHub).");
@@ -271,13 +326,12 @@ export default function StudentDashboard() {
         method: "POST",
         body: JSON.stringify({
           roundId: selectedRound.id,
-          teamId: user.team.id,
+          teamId: team.id,
           repoUrl: repoUrl.trim(),
           demoUrl: demoUrl.trim(),
         }),
       });
       addToast("success", "Nộp bài thành công! Ban tổ chức sẽ xem xét.");
-      // Refresh to get updated submission status
       await loadData();
     } catch (err: unknown) {
       const msg =
@@ -335,7 +389,6 @@ export default function StudentDashboard() {
     );
   }
 
-  const team = user?.team;
   const isLeader = team?.isLeader ?? false;
   const isDisqualified = team?.status === "DISQUALIFIED";
   const blockReason = selectedRound ? getSubmitBlockReason(selectedRound) : null;
@@ -390,7 +443,7 @@ export default function StudentDashboard() {
               </p>
               <p className="text-red-400/80 text-sm mt-1 leading-relaxed">
                 <span className="font-semibold text-red-300">Lý do: </span>
-                {team?.disqualificationReason ||
+                {team?.reasonBlocked ||
                   "Ban tổ chức không cung cấp lý do cụ thể. Vui lòng liên hệ trực tiếp để biết thêm chi tiết."}
               </p>
               <p className="text-red-500/60 text-xs mt-2">
@@ -433,10 +486,10 @@ export default function StudentDashboard() {
             </button>
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50">
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center text-[10px] font-bold text-white">
-                {user?.name?.[0]?.toUpperCase() || "S"}
+                {user?.fullName?.[0]?.toUpperCase() || "S"}
               </div>
               <span className="text-sm text-slate-300 font-medium">
-                {user?.name || "Thí sinh"}
+                {user?.fullName || "Thí sinh"}
               </span>
             </div>
             <button
@@ -462,7 +515,6 @@ export default function StudentDashboard() {
           </div>
 
           {!team ? (
-            // No team yet
             <div
               className="rounded-2xl p-8 border border-dashed border-slate-700/60 text-center"
               style={{ background: "rgba(15,23,42,0.3)" }}
@@ -501,6 +553,11 @@ export default function StudentDashboard() {
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       <TeamStatusBadge status={team.status} />
+                      {team.track && (
+                        <span className="text-xs text-slate-500">
+                          Track: {team.track.name}
+                        </span>
+                      )}
                       <span className="text-xs text-slate-500">
                         {team.members.length} thành viên
                       </span>
@@ -530,13 +587,13 @@ export default function StudentDashboard() {
                         className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40"
                       >
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                          {m.name[0]?.toUpperCase()}
+                          {m.user.fullName?.[0]?.toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm text-white font-medium truncate">
-                            {m.name}
+                            {m.user.fullName}
                           </p>
-                          <p className="text-xs text-slate-500 truncate">{m.email}</p>
+                          <p className="text-xs text-slate-500 truncate">{m.user.email}</p>
                         </div>
                         {m.isLeader && (
                           <Star className="w-3.5 h-3.5 text-orange-400 ml-auto flex-shrink-0" />
@@ -567,7 +624,9 @@ export default function StudentDashboard() {
               <Clock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-400 font-medium">Chưa có vòng thi nào</p>
               <p className="text-slate-600 text-sm mt-1">
-                Ban tổ chức chưa tạo vòng thi cho sự kiện này.
+                {!team
+                  ? "Bạn chưa thuộc đội thi nào nên không thể xem vòng thi."
+                  : "Ban tổ chức chưa tạo vòng thi cho sự kiện này."}
               </p>
             </div>
           ) : (
@@ -587,7 +646,7 @@ export default function StudentDashboard() {
                     }`}
                   >
                     <span className="w-5 h-5 rounded-full bg-slate-700 text-[10px] font-bold flex items-center justify-center text-slate-300">
-                      {round.roundNumber}
+                      {round.sequenceNumber}
                     </span>
                     {round.name}
                     <RoundStatusBadge status={round.status} />
