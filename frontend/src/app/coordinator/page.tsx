@@ -1184,7 +1184,7 @@ function LoadingBox({ text }: { text: string }) {
   );
 }
 
-function EmptyBox({ text, sub }: { text: string }) {
+function EmptyBox({ text, sub }: { text: string; sub?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
       <div className="w-14 h-14 rounded-xl bg-slate-800/50 border border-slate-700 flex items-center justify-center mb-2">
