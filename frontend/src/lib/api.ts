@@ -1,7 +1,7 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
-export async function fetchWithAuth<T>(
+export async function fetchWithAuth<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
