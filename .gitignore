@@ -40,4 +40,5 @@ lerna-debug.log*
 
 # Local databases
 db_data/
+db_replica/
 
