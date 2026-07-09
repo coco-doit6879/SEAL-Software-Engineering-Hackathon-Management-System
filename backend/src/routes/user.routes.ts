@@ -8,8 +8,14 @@ import {
   userIdParamSchema,
   listUsersQuerySchema,
 } from '../validators/user.validator';
-
 const router = Router();
+
+router.get(
+  '/search-by-email',
+  authenticate,
+  authorize('STUDENT'),
+  userController.searchStudentByEmail
+);
 
 // All user management routes require COORDINATOR role
 router.use(authenticate, authorize('COORDINATOR'));

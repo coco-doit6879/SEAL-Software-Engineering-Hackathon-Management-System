@@ -96,4 +96,26 @@ export const userService = {
 
     return updated;
   },
+
+  /**
+   * Get a user by email and role.
+   */
+  async getUserByEmailAndRole(email: string, role: string) {
+    const user = await prisma.user.findFirst({
+      where: {
+        email: { equals: email, mode: 'insensitive' },
+        role: role as any,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+      },
+    });
+    if (!user) {
+      throw ApiError.notFound('Không tìm thấy tài khoản sinh viên với email này.');
+    }
+    return user;
+  },
 };

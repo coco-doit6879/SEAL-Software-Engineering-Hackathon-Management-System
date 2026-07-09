@@ -186,6 +186,16 @@ export default function StudentDashboard() {
   const [demoUrl, setDemoUrl] = useState("");
   const toastCounter = useRef(0);
 
+  // Team Creation & Members Management states
+  const [events, setEvents] = useState<any[]>([]);
+  const [tracks, setTracks] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedTrackId, setSelectedTrackId] = useState("");
+  const [newTeamName, setNewTeamName] = useState("");
+  const [creatingTeam, setCreatingTeam] = useState(false);
+  const [emailToAdd, setEmailToAdd] = useState("");
+  const [submittingAddMember, setSubmittingAddMember] = useState(false);
+
   // ── Toast helpers ──
   function addToast(type: ToastType, message: string) {
     const id = ++toastCounter.current;
@@ -228,6 +238,27 @@ export default function StudentDashboard() {
         }
       } catch {
         setTeam(null);
+      }
+
+      // Fetch events & tracks if user has no team
+      if (!teamData) {
+        try {
+          const eventsRes: any = await fetchWithAuth("/events");
+          const eventsList = eventsRes.data || eventsRes || [];
+          setEvents(eventsList);
+          if (eventsList.length > 0) {
+            const defaultEventId = eventsList[0].id;
+            setSelectedEventId(defaultEventId);
+            const tracksRes: any = await fetchWithAuth(`/tracks/event/${defaultEventId}`);
+            const tracksList = tracksRes.data || tracksRes || [];
+            setTracks(tracksList);
+            if (tracksList.length > 0) {
+              setSelectedTrackId(tracksList[0].id);
+            }
+          }
+        } catch (e) {
+          console.error("Error loading events for team creation:", e);
+        }
       }
 
       // Step 3: Get rounds for the event
@@ -381,6 +412,107 @@ export default function StudentDashboard() {
     }
   }
 
+  const handleEventChange = async (eventId: string) => {
+    setSelectedEventId(eventId);
+    setSelectedTrackId("");
+    setTracks([]);
+    if (!eventId) return;
+    try {
+      const tracksRes: any = await fetchWithAuth(`/tracks/event/${eventId}`);
+      const tracksList = tracksRes.data || tracksRes || [];
+      setTracks(tracksList);
+      if (tracksList.length > 0) {
+        setSelectedTrackId(tracksList[0].id);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch tracks for event:", err);
+    }
+  };
+
+  const handleCreateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeamName.trim()) {
+      addToast("warning", "Vui lòng điền tên đội thi.");
+      return;
+    }
+    if (!selectedTrackId) {
+      addToast("warning", "Vui lòng chọn Track công nghệ.");
+      return;
+    }
+
+    setCreatingTeam(true);
+    try {
+      await fetchWithAuth("/teams", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newTeamName.trim(),
+          trackId: selectedTrackId,
+        }),
+      });
+      addToast("success", "Tạo đội thi thành công! Hãy thêm thành viên.");
+      setNewTeamName("");
+      await loadData();
+    } catch (err: any) {
+      addToast("error", err?.message || "Tạo đội thi thất bại.");
+    } finally {
+      setCreatingTeam(false);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!team) return;
+    if (!emailToAdd.trim()) {
+      addToast("warning", "Vui lòng điền email của thành viên cần thêm.");
+      return;
+    }
+
+    setSubmittingAddMember(true);
+    try {
+      // 1. Search for user by email to get their userId
+      const userRes: any = await fetchWithAuth(`/users/search-by-email?email=${encodeURIComponent(emailToAdd.trim())}`);
+      const userToRegister = userRes.data || userRes;
+      if (!userToRegister || !userToRegister.id) {
+        addToast("error", "Không tìm thấy thông tin tài khoản sinh viên.");
+        setSubmittingAddMember(false);
+        return;
+      }
+
+      // 2. Add to team
+      await fetchWithAuth(`/teams/${team.id}/members`, {
+        method: "POST",
+        body: JSON.stringify({
+          userId: userToRegister.id,
+        }),
+      });
+
+      addToast("success", `Đã thêm thành viên ${userToRegister.fullName} vào đội!`);
+      setEmailToAdd("");
+      await loadData();
+    } catch (err: any) {
+      addToast("error", err?.message || "Không thể thêm thành viên vào đội thi.");
+    } finally {
+      setSubmittingAddMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string, userName: string) => {
+    if (!team) return;
+    if (!confirm(`Bạn có chắc chắn muốn xóa thành viên "${userName}" ra khỏi đội thi?`)) {
+      return;
+    }
+
+    try {
+      await fetchWithAuth(`/teams/${team.id}/members/${userId}`, {
+        method: "DELETE",
+      });
+      addToast("success", `Đã xóa thành viên "${userName}" khỏi đội.`);
+      await loadData();
+    } catch (err: any) {
+      addToast("error", err?.message || "Xóa thành viên thất bại.");
+    }
+  };
+
   // ──────────────────────────────────────────────────────────────────────────
   // RENDER: Loading skeleton
   // ──────────────────────────────────────────────────────────────────────────
@@ -525,15 +657,113 @@ export default function StudentDashboard() {
           </div>
 
           {!team ? (
-            <div
-              className="rounded-2xl p-8 border border-dashed border-slate-700/60 text-center"
-              style={{ background: "rgba(15,23,42,0.3)" }}
-            >
-              <Users className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-400 font-medium">Chưa thuộc đội thi nào</p>
-              <p className="text-slate-600 text-sm mt-1">
-                Bạn chưa được thêm vào đội hoặc đội chưa được tạo. Liên hệ Ban tổ chức.
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+              {/* Left Column: Notification */}
+              <div
+                className="md:col-span-1 rounded-2xl p-6 border border-dashed border-slate-700/60 text-center flex flex-col items-center justify-center bg-white/[0.01]"
+              >
+                <Users className="w-12 h-12 text-slate-500 mb-3" />
+                <p className="text-slate-300 font-semibold text-sm">Chưa thuộc đội thi nào</p>
+                <p className="text-slate-500 text-xs mt-2 leading-relaxed">
+                  Bạn có thể lập đội mới ngay bên cạnh, trở thành nhóm trưởng và mời các thành viên khác tham gia. Hoặc chờ nhóm trưởng khác thêm bạn vào nhóm bằng Email.
+                </p>
+              </div>
+
+              {/* Right Column: Creation Form */}
+              <div
+                className="md:col-span-2 rounded-2xl p-6 border border-white/[0.06] space-y-4"
+                style={{
+                  background: "rgba(15, 23, 42, 0.55)",
+                  backdropFilter: "blur(24px)",
+                  WebkitBackdropFilter: "blur(24px)",
+                  boxShadow: "0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
+                }}
+              >
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-orange-400" />
+                  Đăng ký Đội thi & Track Công nghệ
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Hãy nhập tên nhóm và chọn Track công nghệ của sự kiện để bắt đầu hành trình Hackathon.
+                </p>
+
+                <form onSubmit={handleCreateTeam} className="space-y-4 pt-2">
+                  {/* Tên Đội Thi */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
+                      Tên Đội Thi <span className="text-orange-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newTeamName}
+                      onChange={(e) => setNewTeamName(e.target.value)}
+                      placeholder="Nhập tên nhóm của bạn (ví dụ: Alpha Coders)..."
+                      className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-500 bg-slate-900 border border-slate-800 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 transition-all"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Chọn Sự Kiện */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
+                        Sự Kiện
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={selectedEventId}
+                          onChange={(e) => handleEventChange(e.target.value)}
+                          className="w-full appearance-none pl-4 pr-10 py-3 rounded-xl text-sm text-white bg-slate-900 border border-slate-800 focus:outline-none focus:border-orange-500/50 cursor-pointer transition-all"
+                        >
+                          {events.map((ev) => (
+                            <option key={ev.id} value={ev.id}>
+                              {ev.name} ({ev.term} {ev.year})
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronRight className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none rotate-90" />
+                      </div>
+                    </div>
+
+                    {/* Chọn Track */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
+                        Track Công Nghệ <span className="text-orange-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={selectedTrackId}
+                          onChange={(e) => setSelectedTrackId(e.target.value)}
+                          className="w-full appearance-none pl-4 pr-10 py-3 rounded-xl text-sm text-white bg-slate-900 border border-slate-800 focus:outline-none focus:border-orange-500/50 cursor-pointer transition-all"
+                        >
+                          {tracks.length === 0 ? (
+                            <option value="">Không có track nào</option>
+                          ) : (
+                            tracks.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <ChevronRight className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none rotate-90" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={creatingTeam || tracks.length === 0}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-all shadow-lg shadow-orange-500/10 mt-2"
+                  >
+                    {creatingTeam ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trophy className="w-4 h-4" />
+                    )}
+                    {creatingTeam ? "Đang khởi tạo nhóm..." : "Khởi tạo Đội Thi & Đăng Ký"}
+                  </button>
+                </form>
+              </div>
             </div>
           ) : (
             <div
@@ -605,12 +835,56 @@ export default function StudentDashboard() {
                           </p>
                           <p className="text-xs text-slate-500 truncate">{m.user.email}</p>
                         </div>
-                        {m.isLeader && (
+                        {m.isLeader ? (
                           <Star className="w-3.5 h-3.5 text-orange-400 ml-auto flex-shrink-0" />
+                        ) : (
+                          isLeader && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveMember(m.user.id, m.user.fullName)}
+                              className="ml-auto p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all flex-shrink-0"
+                              title="Xóa thành viên khỏi nhóm"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )
                         )}
                       </div>
                     ))}
                   </div>
+
+                  {/* Add member form if leader */}
+                  {isLeader && (
+                    <div className="mt-5 pt-5 border-t border-white/[0.05] animate-fade-in">
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">
+                        Thêm thành viên mới
+                      </p>
+                      <form onSubmit={handleAddMember} className="flex gap-2 max-w-md">
+                        <input
+                          type="email"
+                          value={emailToAdd}
+                          onChange={(e) => setEmailToAdd(e.target.value)}
+                          placeholder="Nhập email của sinh viên cần thêm (ví dụ: student2@fpt.edu.vn)..."
+                          className="flex-1 px-4 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 bg-slate-900 border border-slate-800 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 transition-all"
+                        />
+                        <button
+                          type="submit"
+                          disabled={submittingAddMember}
+                          className="px-4 py-2.5 rounded-xl font-bold bg-orange-600 hover:bg-orange-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-sm transition-all flex items-center gap-1.5 flex-shrink-0"
+                        >
+                          {submittingAddMember ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Users className="w-4 h-4" />
+                          )}
+                          Thêm
+                        </button>
+                      </form>
+                      <p className="text-[11px] text-slate-500 mt-2">
+                        * Sinh viên được mời cần đăng ký tài khoản trên hệ thống trước khi có thể thêm vào nhóm.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
