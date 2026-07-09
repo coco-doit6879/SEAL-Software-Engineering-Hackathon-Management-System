@@ -35,34 +35,6 @@ interface LoginResponse {
   };
 }
 
-// ─── Demo Accounts ──────────────────────────────────────────────────────────
-const DEMO_ACCOUNTS = [
-  {
-    label: "Ban tổ chức",
-    email: "coordinator@fpt.edu.vn",
-    password: "Password123!",
-    color: "from-orange-500 to-amber-500",
-    icon: "🎯",
-    role: "COORDINATOR",
-  },
-  {
-    label: "Giám khảo",
-    email: "faculty.judge@fpt.edu.vn",
-    password: "Password123!",
-    color: "from-blue-500 to-indigo-500",
-    icon: "⚖️",
-    role: "JUDGE",
-  },
-  {
-    label: "Thí sinh",
-    email: "student1@fpt.edu.vn",
-    password: "Password123!",
-    color: "from-emerald-500 to-teal-500",
-    icon: "🧑‍💻",
-    role: "STUDENT",
-  },
-];
-
 // ─── Helper ──────────────────────────────────────────────────────────────────
 function getRoleRedirect(role: UserRole): string {
   if (role === "COORDINATOR") return "/coordinator";
@@ -78,7 +50,6 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -127,28 +98,6 @@ export default function LoginPage() {
       );
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleDemoLogin(acc: (typeof DEMO_ACCOUNTS)[0]) {
-    setError("");
-    setDemoLoading(acc.role);
-    setEmail(acc.email);
-    setPassword(acc.password);
-    try {
-      const data: any = await fetchWithAuth("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email: acc.email, password: acc.password }),
-      });
-      localStorage.setItem("seal_hms_token", data.data.token);
-      localStorage.setItem("seal_hms_user", JSON.stringify(data.data.user));
-      router.push(getRoleRedirect(data.data.user.role));
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Đăng nhập nhanh thất bại."
-      );
-    } finally {
-      setDemoLoading(null);
     }
   }
 
@@ -307,50 +256,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* ── Divider ── */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="h-px flex-1 bg-slate-700/60" />
-            <span className="text-xs text-slate-500 flex items-center gap-1.5">
-              <Zap className="w-3 h-3 text-amber-500" />
-              Demo Quick Login
-            </span>
-            <div className="h-px flex-1 bg-slate-700/60" />
-          </div>
 
-          {/* ── Quick Demo Buttons ── */}
-          <div className="grid grid-cols-3 gap-2">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <button
-                key={acc.role}
-                id={`demo-login-${acc.role.toLowerCase()}`}
-                type="button"
-                onClick={() => handleDemoLogin(acc)}
-                disabled={demoLoading !== null}
-                className={`relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl
-                  border border-white/[0.07]
-                  hover:border-white/15 hover:scale-[1.03]
-                  active:scale-[0.97]
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  transition-all duration-200 overflow-hidden group`}
-                style={{
-                  background: "rgba(255,255,255,0.03)",
-                }}
-              >
-                {/* Gradient shine on hover */}
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${acc.color} opacity-0 group-hover:opacity-10 transition-opacity duration-300 rounded-xl`}
-                />
-                {demoLoading === acc.role ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-                ) : (
-                  <span className="text-lg">{acc.icon}</span>
-                )}
-                <span className="text-[10px] font-medium text-slate-400 text-center leading-tight">
-                  {acc.label}
-                </span>
-              </button>
-            ))}
-          </div>
 
           {/* ── Register Link ── */}
           <p className="text-center text-sm text-slate-500 mt-6">
