@@ -30,7 +30,9 @@ import { fetchWithAuth } from "@/lib/api";
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TeamStatus = "PENDING" | "APPROVED" | "DISQUALIFIED";
 type RoundStatus =
+  | "UPCOMING"
   | "SUBMISSION_OPEN"
+  | "SUBMISSION_CLOSED"
   | "CALIBRATION"
   | "EVALUATION"
   | "COMPLETED";
@@ -132,9 +134,17 @@ function TeamStatusBadge({ status }: { status: TeamStatus }) {
 
 function RoundStatusBadge({ status }: { status: RoundStatus }) {
   const map: Record<RoundStatus, { label: string; cls: string }> = {
+    UPCOMING: {
+      label: "Sắp diễn ra",
+      cls: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+    },
     SUBMISSION_OPEN: {
       label: "Đang mở nộp bài",
       cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    },
+    SUBMISSION_CLOSED: {
+      label: "Đóng nộp bài",
+      cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
     },
     CALIBRATION: {
       label: "Hiệu chuẩn GK",
@@ -149,7 +159,7 @@ function RoundStatusBadge({ status }: { status: RoundStatus }) {
       cls: "bg-slate-500/15 text-slate-400 border-slate-500/30",
     },
   };
-  const { label, cls } = map[status];
+  const { label, cls } = map[status] || { label: "Sắp diễn ra", cls: "bg-slate-500/15 text-slate-400 border-slate-500/30" };
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${cls}`}
@@ -392,7 +402,7 @@ export default function StudentDashboard() {
   const isLeader = team?.isLeader ?? false;
   const isDisqualified = team?.status === "DISQUALIFIED";
   const blockReason = selectedRound ? getSubmitBlockReason(selectedRound) : null;
-  const canSubmit = isLeader && !isDisqualified && !blockReason;
+  const canSubmit = isLeader && !isDisqualified && !blockReason && team?.status === "APPROVED";
 
   return (
     <div className="relative min-h-screen bg-[#080b11] overflow-x-hidden">
@@ -506,7 +516,7 @@ export default function StudentDashboard() {
       {/* ── Main ── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* ══ SECTION 1: Team Info ══ */}
-        <section>
+        <section id="team">
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-4 h-4 text-orange-400" />
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
@@ -608,7 +618,7 @@ export default function StudentDashboard() {
         </section>
 
         {/* ══ SECTION 2: Rounds & Submission ══ */}
-        <section>
+        <section id="submissions">
           <div className="flex items-center gap-2 mb-4">
             <BookOpen className="w-4 h-4 text-orange-400" />
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
@@ -722,6 +732,16 @@ export default function StudentDashboard() {
                             {selectedRound.mySubmission.demoUrl}
                           </a>
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── Pending approval: Read-only note ── */}
+                    {team?.status === "PENDING" && !isDisqualified && (
+                      <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/25 text-amber-300 text-sm">
+                        <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>
+                          Đội thi đang chờ Ban tổ chức phê duyệt. Bạn chỉ có thể nộp bài sau khi đội được duyệt thành công.
+                        </span>
                       </div>
                     )}
 

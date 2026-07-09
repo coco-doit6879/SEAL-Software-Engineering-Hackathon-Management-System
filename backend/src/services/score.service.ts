@@ -37,6 +37,30 @@ export const scoreService = {
       );
     }
 
+    // Verify Calibration Gatekeeper:
+    // Check if there are calibration samples for this round.
+    const calibrationSamples = await prisma.calibrationSample.findMany({
+      where: { roundId: submission.roundId },
+    });
+
+    if (calibrationSamples.length > 0) {
+      // Find how many calibration samples this judge has graded for this round.
+      const gradedSamples = await prisma.calibrationScore.findMany({
+        where: {
+          judgeId,
+          calibrationSample: { roundId: submission.roundId },
+        },
+        select: { calibrationSampleId: true },
+        distinct: ['calibrationSampleId'],
+      });
+
+      if (gradedSamples.length < calibrationSamples.length) {
+        throw ApiError.forbidden(
+          'Bạn phải hoàn thành chấm thử (Calibration) cho tất cả các dự án mẫu trước khi chấm điểm chính thức.'
+        );
+      }
+    }
+
     // Validate that all criteria IDs exist in this round
     const roundCriteriaIds = submission.round.criteria.map((c) => c.id);
     for (const score of data.scores) {

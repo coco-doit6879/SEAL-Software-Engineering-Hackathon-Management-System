@@ -53,4 +53,12 @@ export const trackController = {
       ...result,
     });
   }),
+
+  getMyMentoredTracks: asyncHandler(async (req: Request, res: Response) => {
+    const tracks = await trackService.getMyMentoredTracks(req.user!.id);
+    res.status(200).json({
+      success: true,
+      data: tracks,
+    });
+  }),
 };

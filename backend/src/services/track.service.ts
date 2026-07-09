@@ -104,4 +104,32 @@ export const trackService = {
     });
     return { message: 'Mentor removed from track.' };
   },
+
+  async getMyMentoredTracks(userId: string) {
+    const trackMentors = await prisma.trackMentor.findMany({
+      where: { userId },
+      include: {
+        track: {
+          include: {
+            event: true,
+            teams: {
+              include: {
+                members: {
+                  include: {
+                    user: { select: { id: true, fullName: true, email: true } },
+                  },
+                },
+                submissions: {
+                  include: {
+                    round: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    return trackMentors.map((tm) => tm.track);
+  },
 };

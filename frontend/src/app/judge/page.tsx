@@ -33,7 +33,9 @@ import { fetchWithAuth } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RoundStatus =
+  | "UPCOMING"
   | "SUBMISSION_OPEN"
+  | "SUBMISSION_CLOSED"
   | "CALIBRATION"
   | "EVALUATION"
   | "COMPLETED";
@@ -188,9 +190,17 @@ function ScoreInput({
 // ─── Round Status Badge ───────────────────────────────────────────────────────
 function RoundStatusBadge({ status }: { status: RoundStatus }) {
   const map: Record<RoundStatus, { label: string; cls: string }> = {
+    UPCOMING: {
+      label: "Sắp diễn ra",
+      cls: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+    },
     SUBMISSION_OPEN: {
       label: "Mở nộp bài",
       cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    },
+    SUBMISSION_CLOSED: {
+      label: "Đóng nộp bài",
+      cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
     },
     CALIBRATION: {
       label: "Chấm thử",
@@ -205,7 +215,7 @@ function RoundStatusBadge({ status }: { status: RoundStatus }) {
       cls: "bg-slate-500/15 text-slate-400 border-slate-500/30",
     },
   };
-  const { label, cls } = map[status];
+  const { label, cls } = map[status] || { label: "Sắp diễn ra", cls: "bg-slate-500/15 text-slate-400 border-slate-500/30" };
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}`}

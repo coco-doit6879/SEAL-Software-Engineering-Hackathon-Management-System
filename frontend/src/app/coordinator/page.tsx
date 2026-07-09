@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Activity,
   Users,
@@ -256,7 +257,7 @@ function DisqualifyModal({
    MAIN COORDINATOR PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export default function CoordinatorDashboard() {
+function CoordinatorDashboardContent() {
   /* ── State ── */
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -285,6 +286,15 @@ export default function CoordinatorDashboard() {
   const [activeSection, setActiveSection] = useState<
     "rounds" | "teams" | "calibration"
   >("rounds");
+
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
+
+  useEffect(() => {
+    if (tab === "rounds" || tab === "teams" || tab === "calibration") {
+      setActiveSection(tab);
+    }
+  }, [tab]);
 
   /* ── Fetch Events ── */
   useEffect(() => {
@@ -322,41 +332,53 @@ export default function CoordinatorDashboard() {
     }
   }, [selectedEventId]);
 
-  useEffect(() => {
-    fetchRounds();
-  }, [fetchRounds]);
 
   /* ── Fetch Teams ── */
   const fetchTeams = useCallback(async () => {
     if (!selectedEventId) return;
     setLoadingTeams(true);
     try {
-      // Try fetching teams for each track in the event
-      // Since there's no direct "get all teams for event" API,
-      // we'll use the event rounds to find tracks
-      const res = await fetchWithAuth<{ success: boolean; data: TeamItem[] }>(
-        `/teams?eventId=${selectedEventId}`
-      );
-      setTeams(res.data || []);
-    } catch {
-      // Fallback: try fetching all teams (if API supports)
-      try {
-        const res = await fetchWithAuth<{
-          success: boolean;
-          data: TeamItem[];
-        }>("/teams");
-        setTeams(res.data || []);
-      } catch {
-        setTeams([]);
+      // 1. Fetch tracks for the event
+      const tracksRes = await fetchWithAuth<{
+        success: boolean;
+        data: Array<{ id: string; name: string }>;
+      }>(`/tracks/event/${selectedEventId}`);
+      
+      const tracks = tracksRes.data || [];
+      const allTeams: TeamItem[] = [];
+
+      // 2. Fetch teams for each track and merge
+      for (const track of tracks) {
+        try {
+          const teamsRes = await fetchWithAuth<{
+            success: boolean;
+            data: TeamItem[];
+          }>(`/teams/track/${track.id}`);
+          
+          if (teamsRes.data && Array.isArray(teamsRes.data)) {
+            const enriched = teamsRes.data.map((team) => ({
+              ...team,
+              track: { name: track.name },
+            }));
+            allTeams.push(...enriched);
+          }
+        } catch (err) {
+          console.error(`Failed to fetch teams for track ${track.id}:`, err);
+        }
       }
+      setTeams(allTeams);
+    } catch (err) {
+      console.error("Failed to fetch tracks:", err);
+      setTeams([]);
     } finally {
       setLoadingTeams(false);
     }
   }, [selectedEventId]);
 
   useEffect(() => {
-    if (activeSection === "teams") fetchTeams();
-  }, [activeSection, fetchTeams]);
+    fetchRounds();
+    fetchTeams();
+  }, [fetchRounds, fetchTeams]);
 
   /* ── Fetch Calibration Analytics ── */
   const fetchCalibration = useCallback(async () => {
@@ -1212,4 +1234,12 @@ function getAlphaQuality(
   if (alpha >= 0.8) return "good";
   if (alpha >= 0.667) return "fair";
   return "poor";
+}
+
+export default function CoordinatorDashboard() {
+  return (
+    <Suspense fallback={<div className="text-slate-400 p-8 text-center">Đang tải...</div>}>
+      <CoordinatorDashboardContent />
+    </Suspense>
+  );
 }

@@ -4,7 +4,7 @@ import {
   CreateCalibrationSampleInput,
   SubmitCalibrationScoreInput,
 } from '../validators/calibration.validator';
-import { calculateICC, calculateKrippendorffAlpha } from '../utils/rblStats';
+import { calculateICC, calculateKrippendorffAlpha, calculateStats } from '../utils/rblStats';
 
 export const calibrationService = {
   /**
@@ -177,7 +177,11 @@ export const calibrationService = {
       where: { id: roundId },
       include: {
         criteria: true,
-        judges: true,
+        judges: {
+          include: {
+            user: { select: { id: true, fullName: true } }
+          }
+        },
       },
     });
     if (!round) {
@@ -250,6 +254,29 @@ export const calibrationService = {
         ? calculateICC(overallMatrix)
         : 0;
 
+    const overallMatrixWithNulls: (number | null)[][] = overallMatrix.map(row => row.map(v => v));
+    const overallAlpha = calculateKrippendorffAlpha(overallMatrixWithNulls);
+
+    const judgeScores = round.judges.map((j) => {
+      const sampleScoresList: number[] = [];
+      for (const sample of samples) {
+        const judgeScoresForSample = sample.scores.filter(
+          (s) => s.judgeId === j.userId
+        );
+        if (judgeScoresForSample.length > 0) {
+          const totalScore = judgeScoresForSample.reduce((sum, s) => sum + s.scoreValue, 0);
+          sampleScoresList.push(totalScore);
+        }
+      }
+      const stats = calculateStats(sampleScoresList);
+      return {
+        judgeName: j.user.fullName,
+        averageScore: stats.mean,
+        stdDev: stats.stdDev,
+        totalScores: sampleScoresList.length,
+      };
+    });
+
     return {
       roundId,
       roundName: round.name,
@@ -257,6 +284,11 @@ export const calibrationService = {
       totalJudges: judgeIds.length,
       overallIcc: Math.round(overallIcc * 1000) / 1000,
       criterionAnalytics,
+      // Frontend compatibility fields:
+      icc: Math.round(overallIcc * 1000) / 1000,
+      krippendorphAlpha: Math.round(overallAlpha * 1000) / 1000,
+      sampleCount: samples.length,
+      judgeScores,
     };
   },
 };

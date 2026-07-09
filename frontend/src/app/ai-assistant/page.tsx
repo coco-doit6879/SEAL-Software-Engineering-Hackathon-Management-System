@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Send,
   Bot,
@@ -36,11 +37,24 @@ interface EventItem {
 }
 
 export default function AIAssistantPage() {
+  const router = useRouter();
+
   // Auth state
   const [token, setToken] = useState<string>("");
   const [user, setUser] = useState<{ fullName: string; email: string; role: string } | null>(null);
   const [authError, setAuthError] = useState<string>("");
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+
+  const handleGoBack = () => {
+    if (!user) {
+      router.push("/auth/login");
+      return;
+    }
+    if (user.role === "COORDINATOR") router.push("/coordinator");
+    else if (user.role === "STUDENT") router.push("/student");
+    else if (user.role === "INTERNAL_JUDGE" || user.role === "GUEST_JUDGE") router.push("/judge");
+    else router.push("/");
+  };
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"rag" | "agent">("rag");
@@ -66,7 +80,11 @@ export default function AIAssistantPage() {
   const [agentError, setAgentError] = useState<string>("");
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const BACKEND_URL = "http://localhost:5000";
+  const BACKEND_URL =
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    (process.env.NEXT_PUBLIC_API_URL
+      ? process.env.NEXT_PUBLIC_API_URL.replace("/api/v1", "")
+      : "http://localhost:5000");
 
   // Auto-scroll chat
   useEffect(() => {
@@ -392,6 +410,12 @@ export default function AIAssistantPage() {
 
         {user ? (
           <div className="flex items-center gap-4">
+            <button
+              onClick={handleGoBack}
+              className="px-3.5 py-2 rounded-xl border border-slate-850 bg-slate-900/40 hover:bg-white/5 text-slate-300 hover:text-white transition-all text-xs font-semibold"
+            >
+              ← Quay lại Dashboard
+            </button>
             <div className="text-right hidden sm:block">
               <p className="text-sm font-semibold text-white">{user.fullName}</p>
               <span className="inline-flex px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 text-2xs font-bold border border-orange-500/20">

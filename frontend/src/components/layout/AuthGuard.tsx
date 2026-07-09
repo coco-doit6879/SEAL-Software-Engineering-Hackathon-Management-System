@@ -10,6 +10,7 @@ const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
   "/student": ["STUDENT"],
   "/judge": ["INTERNAL_JUDGE", "GUEST_JUDGE"],
   "/coordinator": ["COORDINATOR"],
+  "/mentor": ["MENTOR"],
 };
 
 interface AuthGuardProps {
@@ -73,6 +74,8 @@ function getRoleDashboard(role: UserRole): string {
       return "/judge";
     case "COORDINATOR":
       return "/coordinator";
+    case "MENTOR":
+      return "/mentor";
     default:
       return "/";
   }

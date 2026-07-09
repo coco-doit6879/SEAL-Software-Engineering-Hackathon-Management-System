@@ -18,6 +18,24 @@ router.use(authenticate);
 
 /**
  * @openapi
+ * /tracks/mentor/my-tracks:
+ *   get:
+ *     summary: Get all tracks assigned to the logged-in mentor
+ *     tags: [Tracks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Mentor's tracks retrieved successfully
+ */
+router.get(
+  '/mentor/my-tracks',
+  authorize('MENTOR'),
+  trackController.getMyMentoredTracks
+);
+
+/**
+ * @openapi
  * /tracks:
  *   post:
  *     summary: Create a new competition track (COORDINATOR only)

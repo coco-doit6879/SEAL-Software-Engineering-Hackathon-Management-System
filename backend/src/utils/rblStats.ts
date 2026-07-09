@@ -114,8 +114,63 @@ export const calculateICC = (matrix: number[][]): number => {
  * @param matrix A 2D array of size N (submissions) x K (judges).
  */
 export const calculateKrippendorffAlpha = (matrix: (number | null)[][]): number => {
-  // Stub implementation: For final development by the research sub-group
-  // Will parse the matrix, ignore null values, compute coincidence matrices, and return Alpha.
-  console.log('Krippendorff Alpha input matrix dimension: ', matrix.length, 'x', matrix[0]?.length);
-  return 0.78; // Mock value indicating typical acceptable consistency
+  const n = matrix.length;
+  if (n === 0) return 0;
+  const k = matrix[0]?.length || 0;
+  if (k === 0) return 0;
+
+  // 1. Compute Observed Disagreement (Do)
+  let sumObserved = 0;
+  let sumPairsCount = 0;
+
+  for (let i = 0; i < n; i++) {
+    const row = matrix[i];
+    const validScores = row.filter((v): v is number => v !== null);
+    const mi = validScores.length;
+    if (mi < 2) continue; // Skip units with less than 2 ratings
+
+    let rowDiffSum = 0;
+    for (let j = 0; j < mi; j++) {
+      for (let l = j + 1; l < mi; l++) {
+        rowDiffSum += Math.pow(validScores[j] - validScores[l], 2);
+      }
+    }
+    // observed disagreement for unit i is: sum of squared differences divided by (mi - 1)
+    sumObserved += rowDiffSum / (mi - 1);
+    sumPairsCount += mi;
+  }
+
+  if (sumPairsCount === 0) {
+    return 0; // Not enough overlapping ratings to compute agreement
+  }
+
+  const Do = sumObserved / sumPairsCount;
+
+  // 2. Compute Expected Disagreement (De)
+  const allScores = matrix.flatMap(row => row.filter((v): v is number => v !== null));
+  const M = allScores.length;
+  if (M < 2) return 0;
+
+  let sumSq = 0;
+  let sum = 0;
+  for (let g = 0; g < M; g++) {
+    const val = allScores[g];
+    sumSq += val * val;
+    sum += val;
+  }
+
+  // De is the sum of squared differences of all pairs divided by M * (M - 1)
+  // De = \sum_{g < h} (y_g - y_h)^2 / (M * (M - 1) / 2) = (M * sumSq - sum * sum) / (M * (M - 1))
+  const sumExpected = M * sumSq - sum * sum;
+  const De = sumExpected / (M * (M - 1));
+
+  if (De === 0) {
+    // If there is zero expected variance (all ratings are identical),
+    // and observed disagreement is also zero, agreement is perfect (1.0).
+    return Do === 0 ? 1 : 0;
+  }
+
+  const alpha = 1 - (Do / De);
+  return Math.round(alpha * 1000) / 1000;
 };
+

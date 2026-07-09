@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { clearAuth, getCurrentUser } from "@/lib/auth";
 import type { UserRole } from "@/types";
@@ -33,21 +34,27 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["COORDINATOR"],
   },
   {
-    href: "/coordinator/hackathons",
+    href: "/coordinator?tab=rounds",
     label: "Hackathons",
     icon: <Trophy size={18} />,
     roles: ["COORDINATOR"],
   },
   {
-    href: "/coordinator/teams",
+    href: "/coordinator?tab=teams",
     label: "Đội thi",
     icon: <Users size={18} />,
     roles: ["COORDINATOR"],
   },
   {
-    href: "/coordinator/judges",
+    href: "/coordinator?tab=calibration",
     label: "Giám khảo",
     icon: <Star size={18} />,
+    roles: ["COORDINATOR"],
+  },
+  {
+    href: "/ai-assistant",
+    label: "AI Assistant",
+    icon: <Sparkles size={18} className="text-amber-400" />,
     roles: ["COORDINATOR"],
   },
   {
@@ -57,15 +64,21 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["STUDENT"],
   },
   {
-    href: "/student/team",
+    href: "/student#team",
     label: "Đội của tôi",
     icon: <Users size={18} />,
     roles: ["STUDENT"],
   },
   {
-    href: "/student/submissions",
+    href: "/student#submissions",
     label: "Nộp bài",
     icon: <FileText size={18} />,
+    roles: ["STUDENT"],
+  },
+  {
+    href: "/ai-assistant",
+    label: "AI Assistant",
+    icon: <Sparkles size={18} className="text-amber-400" />,
     roles: ["STUDENT"],
   },
   {
@@ -75,10 +88,28 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["INTERNAL_JUDGE", "GUEST_JUDGE"],
   },
   {
-    href: "/judge/evaluate",
+    href: "/judge",
     label: "Chấm điểm",
     icon: <Star size={18} />,
     roles: ["INTERNAL_JUDGE", "GUEST_JUDGE"],
+  },
+  {
+    href: "/ai-assistant",
+    label: "AI Assistant",
+    icon: <Sparkles size={18} className="text-amber-400" />,
+    roles: ["INTERNAL_JUDGE", "GUEST_JUDGE"],
+  },
+  {
+    href: "/mentor",
+    label: "Dashboard",
+    icon: <LayoutDashboard size={18} />,
+    roles: ["MENTOR"],
+  },
+  {
+    href: "/ai-assistant",
+    label: "AI Assistant",
+    icon: <Sparkles size={18} className="text-amber-400" />,
+    roles: ["MENTOR"],
   },
 ];
 
@@ -161,7 +192,33 @@ export default function DashboardLayout({
         {/* Nav */}
         <nav className="flex-1 px-3 mt-4 space-y-1 overflow-y-auto">
           {filteredNav.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const itemPath = item.href.split(/[?#]/)[0];
+            const itemTab = item.href.includes("?tab=") ? item.href.split("?tab=")[1] : null;
+            const itemHash = item.href.includes("#") ? item.href.split("#")[1] : null;
+            
+            let active = false;
+            if (pathname === itemPath) {
+              if (itemTab) {
+                if (typeof window !== "undefined") {
+                  const currentTab = new URLSearchParams(window.location.search).get("tab");
+                  active = currentTab === itemTab;
+                }
+              } else if (itemHash) {
+                if (typeof window !== "undefined") {
+                  active = window.location.hash === `#${itemHash}`;
+                }
+              } else {
+                if (typeof window !== "undefined") {
+                  const currentTab = new URLSearchParams(window.location.search).get("tab");
+                  const hasHash = !!window.location.hash;
+                  // Only active if URL has no tab query parameter and no hash (strictly matches "/coordinator")
+                  active = !currentTab && !hasHash;
+                } else {
+                  active = true;
+                }
+              }
+            }
+
             return (
               <Link
                 key={item.href}
