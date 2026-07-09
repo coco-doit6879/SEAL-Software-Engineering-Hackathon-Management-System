@@ -103,4 +103,51 @@ export const authService = {
     const { passwordHash: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   },
+
+  /**
+   * Update current user's profile.
+   */
+  async updateProfile(userId: string, data: { fullName?: string; password?: string; university?: string; studentCode?: string }) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { studentProfile: true },
+    });
+    if (!user) {
+      throw ApiError.notFound('User no longer exists.');
+    }
+
+    const updateData: any = {};
+    if (data.fullName) {
+      updateData.fullName = data.fullName;
+    }
+    if (data.password) {
+      updateData.passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
+    }
+
+    // Update user
+    await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    // Update studentProfile if role is STUDENT
+    if (user.role === Role.STUDENT && (data.university || data.studentCode)) {
+      await prisma.studentProfile.update({
+        where: { userId },
+        data: {
+          ...(data.university && { university: data.university }),
+          ...(data.studentCode && { studentCode: data.studentCode }),
+        },
+      });
+    }
+
+    // Retrieve fresh user details
+    const freshUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { studentProfile: true },
+    });
+
+    const { passwordHash: _, ...userWithoutPassword } = freshUser!;
+    return userWithoutPassword;
+  },
 };

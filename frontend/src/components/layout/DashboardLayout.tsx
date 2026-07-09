@@ -179,14 +179,18 @@ export default function DashboardLayout({
 
         {/* User pill */}
         {user && (
-          <div className="mx-3 mt-4 p-3 rounded-xl bg-white/5 border border-white/5">
+          <Link
+            href="/profile"
+            className="mx-3 mt-4 p-3 rounded-xl bg-white/5 border border-white/5 hover:border-orange-500/50 block transition-all hover:bg-white/[0.07] cursor-pointer"
+          >
             <p className="text-white text-sm font-semibold truncate">
               {user.fullName}
             </p>
-            <p className="text-xs text-orange-400 mt-0.5">
-              {roleLabel[user.role]}
+            <p className="text-xs text-orange-400 mt-0.5 flex items-center justify-between">
+              <span>{roleLabel[user.role]}</span>
+              <span className="text-[10px] text-slate-500 hover:text-orange-400 underline">Chỉnh sửa</span>
             </p>
-          </div>
+          </Link>
         )}
 
         {/* Nav */}
@@ -273,9 +277,13 @@ export default function DashboardLayout({
             <Menu size={20} />
           </button>
           <div className="flex-1" />
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-bold">
+          <Link
+            href="/profile"
+            title="Xem hồ sơ cá nhân"
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-bold hover:scale-105 transition-all shadow shadow-orange-500/20"
+          >
             {user?.fullName?.charAt(0) ?? "?"}
-          </div>
+          </Link>
         </header>
 
         {/* Page content */}

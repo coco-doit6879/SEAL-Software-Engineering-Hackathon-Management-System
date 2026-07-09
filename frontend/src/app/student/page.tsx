@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   AlertTriangle,
   Github,
@@ -626,14 +627,17 @@ export default function StudentDashboard() {
             >
               <RefreshCw className="w-4 h-4" />
             </button>
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50">
+            <Link
+              href="/profile"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 hover:border-orange-500/50 transition-colors"
+            >
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center text-[10px] font-bold text-white">
                 {user?.fullName?.[0]?.toUpperCase() || "S"}
               </div>
-              <span className="text-sm text-slate-300 font-medium">
+              <span className="text-sm text-slate-300 font-medium hover:text-orange-400 transition-colors">
                 {user?.fullName || "Thí sinh"}
               </span>
-            </div>
+            </Link>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
