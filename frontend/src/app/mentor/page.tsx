@@ -67,6 +67,11 @@ export default function MentorDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Submission scores tracking
+  const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
+  const [subScores, setSubScores] = useState<any[]>([]);
+  const [loadingScores, setLoadingScores] = useState(false);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -111,6 +116,36 @@ export default function MentorDashboard() {
       setSelectedTeam(null);
     }
   }, [selectedTrack]);
+
+  // Reset expanded submission when selected team changes
+  useEffect(() => {
+    setExpandedSubId(null);
+    setSubScores([]);
+  }, [selectedTeam]);
+
+  const fetchSubmissionScores = useCallback(async (subId: string) => {
+    setLoadingScores(true);
+    setSubScores([]);
+    try {
+      const res = await fetchWithAuth(`/scores/submission/${subId}`);
+      setSubScores(res.data || []);
+    } catch (err: any) {
+      console.error("Failed to fetch submission scores:", err);
+      setSubScores([]);
+    } finally {
+      setLoadingScores(false);
+    }
+  }, []);
+
+  const handleToggleSubmissionDetails = (subId: string) => {
+    if (expandedSubId === subId) {
+      setExpandedSubId(null);
+      setSubScores([]);
+    } else {
+      setExpandedSubId(subId);
+      fetchSubmissionScores(subId);
+    }
+  };
 
   return (
     <AuthGuard>
@@ -390,6 +425,73 @@ export default function MentorDashboard() {
                                   <strong>Lý do loại bài thi: </strong>
                                   {sub.disqualificationReason}
                                 </div>
+                              )}
+
+                              {/* Judge Scores & Comments Toggle */}
+                              {!sub.isDisqualified && (
+                                <>
+                                  <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                                    <span className="text-2xs text-slate-500">Xem nhận xét và điểm số của Giám khảo</span>
+                                    <button
+                                      onClick={() => handleToggleSubmissionDetails(sub.id)}
+                                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+                                    >
+                                      {expandedSubId === sub.id ? "Thu gọn" : "Xem chi tiết điểm"}
+                                    </button>
+                                  </div>
+
+                                  {expandedSubId === sub.id && (
+                                    <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-4">
+                                      {loadingScores ? (
+                                        <div className="flex items-center justify-center gap-2 py-4">
+                                          <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />
+                                          <span className="text-xs text-slate-500">Đang tải điểm số từ Giám khảo...</span>
+                                        </div>
+                                      ) : subScores.length === 0 ? (
+                                        <p className="text-xs text-slate-500 italic text-center py-2">
+                                          Chưa có điểm hoặc nhận xét nào từ Giám khảo.
+                                        </p>
+                                      ) : (
+                                        <div className="space-y-4 animate-fade-in">
+                                          {Object.entries(
+                                            subScores.reduce((acc, score) => {
+                                              const judgeName = score.judge.fullName;
+                                              if (!acc[judgeName]) acc[judgeName] = [];
+                                              acc[judgeName].push(score);
+                                              return acc;
+                                            }, {} as Record<string, any[]>)
+                                          ).map(([judgeName, scoresVal], idx) => {
+                                            const scores = scoresVal as any[];
+                                            return (
+                                              <div key={idx} className="p-4 rounded-xl bg-slate-950 border border-slate-900 space-y-3">
+                                                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                                                  <span className="text-xs font-bold text-slate-300">Giám khảo: {judgeName}</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                  {scores.map((score, sIdx) => (
+                                                    <div key={sIdx} className="text-xs space-y-1">
+                                                      <div className="flex items-center justify-between">
+                                                        <span className="text-slate-400 font-medium">{score.criterion.name}:</span>
+                                                        <span className="font-bold text-orange-400">
+                                                          {score.scoreValue} / {score.criterion.maxPoints} đ
+                                                        </span>
+                                                      </div>
+                                                      {score.comments && (
+                                                        <p className="text-2xs text-slate-500 italic leading-relaxed pl-2 border-l border-orange-500/30 mt-0.5">
+                                                          &ldquo;{score.comments}&rdquo;
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           ))}

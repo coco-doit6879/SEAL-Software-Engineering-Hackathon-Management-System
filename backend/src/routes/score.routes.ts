@@ -80,7 +80,7 @@ router.post(
 
 router.get(
   '/submission/:submissionId',
-  authorize('COORDINATOR', 'INTERNAL_JUDGE', 'GUEST_JUDGE'),
+  authorize('COORDINATOR', 'INTERNAL_JUDGE', 'GUEST_JUDGE', 'MENTOR'),
   validate({ params: submissionIdParamSchema }),
   scoreController.getScoresForSubmission
 );

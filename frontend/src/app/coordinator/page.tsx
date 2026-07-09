@@ -282,16 +282,23 @@ function CoordinatorDashboardContent() {
     null
   );
 
+  // Leaderboard states
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [selectedSubIdForDetails, setSelectedSubIdForDetails] = useState<string | null>(null);
+  const [detailedScores, setDetailedScores] = useState<any[]>([]);
+  const [loadingDetailedScores, setLoadingDetailedScores] = useState(false);
+
   // Active tab
   const [activeSection, setActiveSection] = useState<
-    "rounds" | "teams" | "calibration"
+    "rounds" | "teams" | "calibration" | "leaderboard"
   >("rounds");
 
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab");
 
   useEffect(() => {
-    if (tab === "rounds" || tab === "teams" || tab === "calibration") {
+    if (tab === "rounds" || tab === "teams" || tab === "calibration" || tab === "leaderboard") {
       setActiveSection(tab);
     }
   }, [tab]);
@@ -402,6 +409,53 @@ function CoordinatorDashboardContent() {
     if (activeSection === "calibration" && selectedRoundId) fetchCalibration();
   }, [activeSection, selectedRoundId, fetchCalibration]);
 
+  /* ── Fetch Leaderboard ── */
+  const fetchLeaderboard = useCallback(async () => {
+    if (!selectedRoundId) return;
+    setLoadingLeaderboard(true);
+    setLeaderboard([]);
+    try {
+      const res = await fetchWithAuth<{
+        success: boolean;
+        data: any[];
+      }>(`/scores/leaderboard/${selectedRoundId}`);
+      setLeaderboard(res.data || []);
+    } catch {
+      setLeaderboard([]);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  }, [selectedRoundId]);
+
+  useEffect(() => {
+    if (activeSection === "leaderboard" && selectedRoundId) fetchLeaderboard();
+  }, [activeSection, selectedRoundId, fetchLeaderboard]);
+
+  /* ── Fetch Detailed Scores ── */
+  const fetchDetailedScores = useCallback(async (subId: string) => {
+    setLoadingDetailedScores(true);
+    setDetailedScores([]);
+    try {
+      const res = await fetchWithAuth<{
+        success: boolean;
+        data: any[];
+      }>(`/scores/submission/${subId}`);
+      setDetailedScores(res.data || []);
+    } catch {
+      setDetailedScores([]);
+    } finally {
+      setLoadingDetailedScores(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedSubIdForDetails) {
+      fetchDetailedScores(selectedSubIdForDetails);
+    } else {
+      setDetailedScores([]);
+    }
+  }, [selectedSubIdForDetails, fetchDetailedScores]);
+
   /* ── Actions ── */
 
   const handleStatusChange = async (
@@ -460,6 +514,30 @@ function CoordinatorDashboardContent() {
         err instanceof Error ? err.message : "Không thể loại đội thi";
       setToast({ message: msg, type: "error" });
     }
+  };
+
+  const handleExportCSV = () => {
+    if (leaderboard.length === 0) return;
+    const headers = ["Xếp Hạng", "Tên Đội Thi", "Phân Nhánh (Track)", "Điểm Trung Bình (%)", "Số Giám Khảo Chấm", "Thời Gian Nộp"];
+    const rows = leaderboard.map(entry => [
+      entry.rank,
+      `"${entry.team.name.replace(/"/g, '""')}"`,
+      `"${entry.team.trackName.replace(/"/g, '""')}"`,
+      entry.averageScore,
+      entry.judgeCount,
+      new Date(entry.submittedAt).toLocaleString("vi-VN")
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    const roundNameClean = selectedRound?.name.replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, "_") || "Vong_Dau";
+    link.setAttribute("download", `BangXepHang_${roundNameClean}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   /* ── Derived ── */
@@ -575,6 +653,11 @@ function CoordinatorDashboardContent() {
               key: "calibration",
               label: "Hiệu chuẩn GK",
               icon: <BarChart3 className="w-4 h-4" />,
+            },
+            {
+              key: "leaderboard",
+              label: "Bảng xếp hạng",
+              icon: <Trophy className="w-4 h-4" />,
             },
           ] as const
         ).map((tab) => (
@@ -898,6 +981,258 @@ function CoordinatorDashboardContent() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+         SECTION 4: LEADERBOARD
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {activeSection === "leaderboard" && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 className="section-title flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-orange-400" />
+              Bảng xếp hạng Vòng thi
+            </h2>
+
+            {rounds.length > 0 && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Vòng:
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedRoundId}
+                      onChange={(e) => setSelectedRoundId(e.target.value)}
+                      className="appearance-none pl-3 pr-8 py-2 rounded-lg border border-slate-800 bg-slate-900/60 text-xs font-semibold text-white focus:outline-none focus:border-orange-500/40 cursor-pointer transition-all"
+                    >
+                      {rounds.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <button
+                  onClick={fetchLeaderboard}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Tải lại
+                </button>
+
+                {leaderboard.length > 0 && (
+                  <button
+                    onClick={handleExportCSV}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm shadow-emerald-500/10"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Xuất báo cáo (CSV)
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {loadingLeaderboard ? (
+            <LoadingBox text="Đang tải bảng xếp hạng..." />
+          ) : leaderboard.length === 0 ? (
+            <EmptyBox
+              text="Chưa có bảng xếp hạng cho vòng này"
+              sub="Dữ liệu xếp hạng sẽ hiển thị khi giám khảo hoàn thành chấm điểm các bài nộp."
+            />
+          ) : (
+            <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800/50">
+                      <th className="text-center px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider w-[80px]">
+                        Hạng
+                      </th>
+                      <th className="text-left px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Đội thi
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Phân nhánh (Track)
+                      </th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Điểm TB (%)
+                      </th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Số GK đã chấm
+                      </th>
+                      <th className="text-right px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Thao tác
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((entry) => {
+                      const isTopN = selectedRound && entry.rank <= selectedRound.topNToProgress;
+
+                      return (
+                        <tr
+                          key={entry.submissionId}
+                          className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`inline-flex w-7 h-7 rounded-full text-xs font-extrabold items-center justify-center ${
+                                entry.rank === 1
+                                  ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                  : entry.rank === 2
+                                  ? "bg-slate-300/20 text-slate-300 border border-slate-300/30"
+                                  : entry.rank === 3
+                                  ? "bg-amber-600/20 text-amber-500 border border-amber-600/30"
+                                  : "bg-slate-800 text-slate-400"
+                              }`}
+                            >
+                              {entry.rank}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <div className="font-semibold text-white">{entry.team.name}</div>
+                            <div className="text-2xs text-slate-500 mt-0.5">
+                              {entry.team.members.map((m: any) => m.fullName).join(", ")}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-300">{entry.team.trackName}</td>
+                          <td className="px-4 py-3 text-center font-mono font-bold text-orange-400 text-sm">
+                            {entry.averageScore.toFixed(2)}%
+                          </td>
+                          <td className="px-4 py-3 text-center text-slate-400">{entry.judgeCount}</td>
+                          <td className="px-5 py-3 text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              {isTopN && (
+                                <span className="inline-flex px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-2xs font-bold border border-emerald-500/20">
+                                  Được đi tiếp
+                                </span>
+                              )}
+                              <button
+                                onClick={() => setSelectedSubIdForDetails(entry.submissionId)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                Chi tiết
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Detailed Scores Modal ── */}
+      {selectedSubIdForDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-4xl mx-4 glass-panel-strong rounded-2xl p-6 border border-slate-800 animate-slide-up max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4 flex-shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-orange-400" />
+                  Chi tiết điểm số từ Giám khảo
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Thông tin điểm số và nhận xét chi tiết cho từng tiêu chí chấm
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedSubIdForDetails(null)}
+                className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+              {loadingDetailedScores ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-2">
+                  <div className="w-8 h-8 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
+                  <p className="text-xs text-slate-400">Đang tải điểm số chi tiết...</p>
+                </div>
+              ) : detailedScores.length === 0 ? (
+                <div className="py-20 text-center text-slate-500 text-sm">
+                  Chưa có giám khảo nào chấm điểm cho bài thi này.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Group scores by Judge */}
+                  {Object.entries(
+                    detailedScores.reduce((acc, score) => {
+                      const judgeName = score.judge.fullName;
+                      if (!acc[judgeName]) acc[judgeName] = [];
+                      acc[judgeName].push(score);
+                      return acc;
+                    }, {} as Record<string, any[]>)
+                  ).map(([judgeName, scoresVal], idx) => {
+                    const scores = scoresVal as any[];
+                    let total = 0;
+                    if (selectedRound) {
+                      for (const criterion of selectedRound.criteria || []) {
+                        const s = scores.find(item => item.criterionId === criterion.id);
+                        const rawScore = s ? s.scoreValue : 0;
+                        const normalizedScore = rawScore / criterion.maxPoints;
+                        total += normalizedScore * criterion.weight;
+                      }
+                    }
+
+                    return (
+                      <div key={idx} className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800/50">
+                          <div>
+                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider font-semibold">Giám khảo</span>
+                            <h4 className="text-sm font-bold text-white mt-0.5">{judgeName}</h4>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider font-semibold">Tổng điểm quy đổi</span>
+                            <p className="text-sm font-extrabold text-orange-400 mt-0.5">{(total * 100).toFixed(1)}%</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {scores.map((score, sIdx) => (
+                            <div key={sIdx} className="p-3 rounded-xl bg-slate-900 border border-slate-800/60 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-white">{score.criterion.name}</span>
+                                  <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${score.criterion.isTechnical ? "bg-blue-500/10 border border-blue-500/20 text-blue-400" : "bg-purple-500/10 border border-purple-500/20 text-purple-400"}`}>
+                                    {score.criterion.isTechnical ? "Technical" : "Soft Skill"}
+                                  </span>
+                                </div>
+                                {score.comments ? (
+                                  <p className="text-xs text-slate-400 mt-1.5 italic leading-relaxed">
+                                    &ldquo;{score.comments}&rdquo;
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-slate-600 mt-1.5 italic">Không có nhận xét.</p>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <span className="text-xs font-mono font-bold text-orange-400">{score.scoreValue}</span>
+                                <span className="text-xs text-slate-500"> / {score.criterion.maxPoints} đ</span>
+                                <p className="text-[10px] text-slate-500 mt-0.5">Trọng số: {Math.round(score.criterion.weight * 100)}%</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
