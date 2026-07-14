@@ -59,6 +59,7 @@ model User {
   scores         Score[]
   calibrationScores CalibrationScore[]
   auditLogs      AuditLog[]
+  teamInvitations TeamInvitation[]
 }
 
 model StudentProfile {
@@ -159,6 +160,7 @@ model Team {
   members       TeamMember[]
   submissions   Submission[]
   prizes        Prize[]
+  invitations   TeamInvitation[]
 }
 
 model TeamMember {
@@ -181,6 +183,7 @@ model Submission {
   repoUrl       String
   demoUrl       String
   documentUrl   String?
+  commitSha     String?
   submittedAt   DateTime @default(now())
   isDisqualified Boolean @default(false)
   disqualificationReason String?
@@ -261,4 +264,23 @@ model RuleDocument {
   content   String
   embedding Float[]
   createdAt DateTime @default(now())
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model TeamInvitation {
+  id        String           @id @default(uuid()) @map("_id")
+  teamId    String
+  team      Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    InvitationStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([teamId, userId])
 }

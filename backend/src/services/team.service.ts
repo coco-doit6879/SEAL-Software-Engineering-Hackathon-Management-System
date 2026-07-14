@@ -15,15 +15,19 @@ export const teamService = {
       throw ApiError.notFound('Track not found.');
     }
 
-    // Check if student is already in a team on this track
+    // Check if student is already in a team in this event
     const existingMembership = await prisma.teamMember.findFirst({
       where: {
         userId,
-        team: { trackId: data.trackId },
+        team: {
+          track: {
+            eventId: track.eventId,
+          },
+        },
       },
     });
     if (existingMembership) {
-      throw ApiError.conflict('You are already a member of a team in this track.');
+      throw ApiError.conflict('You are already a member of a team in this event.');
     }
 
     // Create team with the student as leader
@@ -71,6 +75,12 @@ export const teamService = {
         members: {
           include: {
             user: { select: { id: true, fullName: true, email: true, role: true } },
+          },
+        },
+        invitations: {
+          where: { status: 'PENDING' },
+          include: {
+            user: { select: { id: true, fullName: true, email: true } },
           },
         },
         submissions: true,
@@ -134,7 +144,7 @@ export const teamService = {
   },
 
   /**
-   * Add a student member to a team.
+   * Invite a student member to a team.
    */
   async addMember(teamId: string, userId: string, requesterId: string) {
     const team = await prisma.team.findUnique({
@@ -148,7 +158,7 @@ export const teamService = {
     // Check if requester is team leader
     const requesterMember = team.members.find((m) => m.userId === requesterId);
     if (!requesterMember || !requesterMember.isLeader) {
-      throw ApiError.forbidden('Only the team leader can add members.');
+      throw ApiError.forbidden('Only the team leader can invite members.');
     }
 
     // Check if user exists and is a student
@@ -168,24 +178,71 @@ export const teamService = {
       throw ApiError.conflict('User is already a member of this team.');
     }
 
-    // Check if user is in another team on same track
+    // Get track event info
+    const track = await prisma.track.findUnique({
+      where: { id: team.trackId },
+      include: { event: true },
+    });
+    if (!track) {
+      throw ApiError.notFound('Track not found.');
+    }
+
+    // Check if user is in another team in this event
     const otherMembership = await prisma.teamMember.findFirst({
       where: {
         userId,
-        team: { trackId: team.trackId },
+        team: {
+          track: {
+            eventId: track.eventId,
+          },
+        },
       },
     });
     if (otherMembership) {
-      throw ApiError.conflict('User is already in another team in this track.');
+      throw ApiError.conflict('User is already in another team in this event.');
     }
 
-    const member = await prisma.teamMember.create({
-      data: { teamId, userId },
+    // Check if there is already a pending invitation to this team
+    const existingInvitation = await prisma.teamInvitation.findUnique({
+      where: {
+        teamId_userId: { teamId, userId },
+      },
+    });
+    if (existingInvitation && existingInvitation.status === 'PENDING') {
+      throw ApiError.conflict('An invitation is already pending for this user.');
+    }
+
+    // Create or update invitation to PENDING
+    const invitation = await prisma.teamInvitation.upsert({
+      where: {
+        teamId_userId: { teamId, userId },
+      },
+      update: {
+        status: 'PENDING',
+      },
+      create: {
+        teamId,
+        userId,
+        status: 'PENDING',
+      },
       include: {
         user: { select: { id: true, fullName: true, email: true } },
       },
     });
-    return member;
+
+    // Send invitation email
+    const leaderUser = await prisma.user.findUnique({ where: { id: requesterId } });
+    if (user.email) {
+      emailService.sendTeamInvitationEmail(
+        user.email,
+        user.fullName,
+        team.name,
+        leaderUser?.fullName || 'Leader',
+        track.event.name
+      ).catch((err) => console.error('Failed to send team invitation email:', err));
+    }
+
+    return invitation;
   },
 
   /**
@@ -239,6 +296,12 @@ export const teamService = {
                 user: { select: { id: true, fullName: true, email: true } },
               },
             },
+            invitations: {
+              where: { status: 'PENDING' },
+              include: {
+                user: { select: { id: true, fullName: true, email: true } },
+              },
+            },
             submissions: true,
             prizes: true,
           },
@@ -250,5 +313,137 @@ export const teamService = {
       ...m.team,
       isLeader: m.isLeader,
     }));
+  },
+
+  async getMyPendingInvitations(userId: string) {
+    return prisma.teamInvitation.findMany({
+      where: {
+        userId,
+        status: 'PENDING',
+      },
+      include: {
+        team: {
+          include: {
+            track: {
+              include: {
+                event: true,
+              },
+            },
+            members: {
+              include: {
+                user: { select: { fullName: true } }
+              }
+            }
+          },
+        },
+      },
+    });
+  },
+
+  async respondToInvitation(invitationId: string, userId: string, action: 'ACCEPT' | 'REJECT') {
+    const invitation = await prisma.teamInvitation.findUnique({
+      where: { id: invitationId },
+      include: {
+        team: {
+          include: {
+            track: true,
+          },
+        },
+      },
+    });
+    if (!invitation) {
+      throw ApiError.notFound('Invitation not found.');
+    }
+    if (invitation.userId !== userId) {
+      throw ApiError.forbidden('This invitation is not for you.');
+    }
+    if (invitation.status !== 'PENDING') {
+      throw ApiError.badRequest('This invitation has already been processed.');
+    }
+
+    if (action === 'ACCEPT') {
+      // Check if user is already in a team in this event
+      const otherMembership = await prisma.teamMember.findFirst({
+        where: {
+          userId,
+          team: {
+            track: {
+              eventId: invitation.team.track.eventId,
+            },
+          },
+        },
+      });
+      if (otherMembership) {
+        throw ApiError.conflict('You are already in a team in this event.');
+      }
+
+      // Add to team members
+      await prisma.teamMember.create({
+        data: {
+          teamId: invitation.teamId,
+          userId,
+          isLeader: false,
+        },
+      });
+
+      // Update current invitation to ACCEPTED
+      const updated = await prisma.teamInvitation.update({
+        where: { id: invitationId },
+        data: { status: 'ACCEPTED' },
+      });
+
+      // Reject all other pending invitations for this user in this event
+      await prisma.teamInvitation.updateMany({
+        where: {
+          userId,
+          status: 'PENDING',
+          team: {
+            track: {
+              eventId: invitation.team.track.eventId,
+            },
+          },
+        },
+        data: {
+          status: 'REJECTED',
+        },
+      });
+
+      return updated;
+    } else {
+      const updated = await prisma.teamInvitation.update({
+        where: { id: invitationId },
+        data: { status: 'REJECTED' },
+      });
+      return updated;
+    }
+  },
+
+  async cancelInvitation(invitationId: string, requesterId: string) {
+    const invitation = await prisma.teamInvitation.findUnique({
+      where: { id: invitationId },
+      include: {
+        team: {
+          include: {
+            members: true,
+          },
+        },
+      },
+    });
+    if (!invitation) {
+      throw ApiError.notFound('Invitation not found.');
+    }
+
+    const requesterMember = invitation.team.members.find((m) => m.userId === requesterId);
+    if (!requesterMember || !requesterMember.isLeader) {
+      throw ApiError.forbidden('Only the team leader can cancel invitations.');
+    }
+    if (invitation.status !== 'PENDING') {
+      throw ApiError.badRequest('Only pending invitations can be cancelled.');
+    }
+
+    await prisma.teamInvitation.delete({
+      where: { id: invitationId },
+    });
+    return { message: 'Invitation cancelled.' };
   },
 };

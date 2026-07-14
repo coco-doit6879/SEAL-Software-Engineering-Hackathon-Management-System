@@ -94,9 +94,68 @@ export const roundService = {
   },
 
   async updateRoundStatus(id: string, status: string) {
-    const round = await prisma.round.findUnique({ where: { id } });
+    const round = await prisma.round.findUnique({
+      where: { id },
+      include: {
+        judges: true,
+        criteria: true,
+        submissions: {
+          where: { isDisqualified: false },
+        },
+      },
+    });
     if (!round) {
       throw ApiError.notFound('Round not found.');
+    }
+
+    if (status === 'COMPLETED') {
+      const activeSubmissions = round.submissions;
+      const criteriaCount = round.criteria.length;
+      const judgesCount = round.judges.length;
+      const submissionsCount = activeSubmissions.length;
+
+      if (submissionsCount > 0 && criteriaCount > 0 && judgesCount > 0) {
+        // Find all scores submitted for this round
+        const scores = await prisma.score.findMany({
+          where: {
+            submission: {
+              roundId: id,
+              isDisqualified: false,
+            },
+          },
+        });
+
+        // Group scores by judgeId
+        const judgeScoreCounts: Record<string, number> = {};
+        for (const score of scores) {
+          // Only count scores from judges currently assigned to the round
+          const isAssigned = round.judges.some((j) => j.userId === score.judgeId);
+          if (isAssigned) {
+            judgeScoreCounts[score.judgeId] = (judgeScoreCounts[score.judgeId] || 0) + 1;
+          }
+        }
+
+        // Expected score entries count for each judge: submissionsCount * criteriaCount
+        const expectedCount = submissionsCount * criteriaCount;
+
+        const incompleteJudges = [];
+        for (const roundJudge of round.judges) {
+          const actualCount = judgeScoreCounts[roundJudge.userId] || 0;
+          if (actualCount < expectedCount) {
+            const user = await prisma.user.findUnique({
+              where: { id: roundJudge.userId },
+              select: { fullName: true },
+            });
+            incompleteJudges.push(user?.fullName || roundJudge.userId);
+          }
+        }
+
+        if (incompleteJudges.length > 0) {
+          throw ApiError.badRequest(
+            `Không thể hoàn thành vòng thi. Các giám khảo sau chưa hoàn thành chấm điểm: ${incompleteJudges.join(', ')}. Ban tổ chức có thể xóa giám khảo vắng mặt khỏi vòng thi này để bỏ qua.`
+          );
+        }
+      }
     }
 
     const updated = await prisma.round.update({

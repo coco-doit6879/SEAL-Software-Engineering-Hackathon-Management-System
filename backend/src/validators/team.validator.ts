@@ -31,3 +31,9 @@ export const removeMemberParamSchema = z.object({
 
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 export type UpdateTeamStatusInput = z.infer<typeof updateTeamStatusSchema>;
+
+export const respondInvitationSchema = z.object({
+  action: z.enum(['ACCEPT', 'REJECT'], {
+    message: 'Action must be ACCEPT or REJECT',
+  }),
+});

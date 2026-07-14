@@ -49,7 +49,7 @@ export const teamController = {
     );
     res.status(201).json({
       success: true,
-      message: 'Member added to team.',
+      message: 'Invitation sent successfully.',
       data: member,
     });
   }),
@@ -71,6 +71,39 @@ export const teamController = {
     res.status(200).json({
       success: true,
       data: teams,
+    });
+  }),
+
+  getMyInvitations: asyncHandler(async (req: Request, res: Response) => {
+    const invitations = await teamService.getMyPendingInvitations(req.user!.id);
+    res.status(200).json({
+      success: true,
+      data: invitations,
+    });
+  }),
+
+  respondToInvitation: asyncHandler(async (req: Request, res: Response) => {
+    const { action } = req.body;
+    const invitation = await teamService.respondToInvitation(
+      req.params.id,
+      req.user!.id,
+      action
+    );
+    res.status(200).json({
+      success: true,
+      message: `Invitation ${action.toLowerCase()}ed successfully.`,
+      data: invitation,
+    });
+  }),
+
+  cancelInvitation: asyncHandler(async (req: Request, res: Response) => {
+    const result = await teamService.cancelInvitation(
+      req.params.id,
+      req.user!.id
+    );
+    res.status(200).json({
+      success: true,
+      ...result,
     });
   }),
 };
