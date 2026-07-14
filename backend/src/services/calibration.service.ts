@@ -9,6 +9,7 @@ import { calculateICC, calculateKrippendorffAlpha, calculateStats } from '../uti
 export const calibrationService = {
   /**
    * Create a calibration sample for a round.
+   * Core Flow: Validates round existence, then creates a sample with metadata and URLs.
    */
   async createCalibrationSample(data: CreateCalibrationSampleInput) {
     const round = await prisma.round.findUnique({ where: { id: data.roundId } });
@@ -31,6 +32,7 @@ export const calibrationService = {
 
   /**
    * Get calibration samples for a round.
+   * Core Flow: Queries all calibration samples in a round, eager loading scores, judges, and criteria.
    */
   async getSamplesByRound(roundId: string) {
     const samples = await prisma.calibrationSample.findMany({
@@ -49,6 +51,8 @@ export const calibrationService = {
 
   /**
    * Submit calibration scores for a sample.
+   * Core Flow: Assures sample exists, verifies that judge is assigned to the round,
+   * validates criteria matches the round, and upserts score records.
    */
   async submitCalibrationScores(
     sampleId: string,
@@ -126,6 +130,7 @@ export const calibrationService = {
 
   /**
    * Get calibration results for a round — comparing judges' scores on samples.
+   * Core Flow: Resolves round/criteria/judges metadata and returns them mapped with scores.
    */
   async getCalibrationResults(roundId: string) {
     const samples = await prisma.calibrationSample.findMany({
@@ -171,6 +176,11 @@ export const calibrationService = {
 
   /**
    * Get calibration analytics (ICC, Alpha) for a round.
+   * Core Flow: 
+   * 1. Fetches round configuration, judges, and samples from database.
+   * 2. Loops criteria to build a Sample x Judge matrix, executing ICC and Krippendorff's Alpha per criterion.
+   * 3. Aggregates all criteria into a weighted overall matrix to calculate overall ICC and Alpha.
+   * 4. Calculates Mean and Standard Deviation stats for each individual judge.
    */
   async getCalibrationAnalytics(roundId: string) {
     const round = await prisma.round.findUnique({

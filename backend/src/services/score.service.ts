@@ -6,6 +6,13 @@ import { calculateICC, calculateKrippendorffAlpha } from '../utils/rblStats';
 export const scoreService = {
   /**
    * Submit scores for a submission. Judge must be assigned to the round.
+   * Core Flow:
+   * 1. Validates submission existence and disqualification state.
+   * 2. Assures judge assignment validity for the target round.
+   * 3. Confirms the evaluation phase is active.
+   * 4. Gatekeeps judging flow: requires judges to complete all calibration sample scores first.
+   * 5. Checks if submitted criteria exist in the round and within max point limits.
+   * 6. Upserts individual score entries to permit re-scoring capability.
    */
   async submitScores(submissionId: string, judgeId: string, data: SubmitScoreInput) {
     // Verify submission exists and is not disqualified
@@ -37,8 +44,7 @@ export const scoreService = {
       );
     }
 
-    // Verify Calibration Gatekeeper:
-    // Check if there are calibration samples for this round.
+    // Verify Calibration Gatekeeper: Check if there are calibration samples for this round.
     const calibrationSamples = await prisma.calibrationSample.findMany({
       where: { roundId: submission.roundId },
     });
@@ -122,6 +128,7 @@ export const scoreService = {
 
   /**
    * Get all scores for a submission.
+   * Core Flow: Fetches raw scores joined with judge metadata and criteria specs.
    */
   async getScoresForSubmission(submissionId: string) {
     const scores = await prisma.score.findMany({
@@ -136,6 +143,12 @@ export const scoreService = {
 
   /**
    * Get leaderboard for a round. Calculates weighted total scores.
+   * Core Flow:
+   * 1. Fetches active non-disqualified submissions, team members, and associated scores.
+   * 2. Groups submission scores per judge and normalizes values against criterion maximum points.
+   * 3. Multiplies normalized score values by weights to produce weighted percentiles per judge.
+   * 4. Averages the weighted total score across all scoring judges.
+   * 5. Sorts the results in descending order and assigns rankings.
    */
   async getLeaderboard(roundId: string) {
     const round = await prisma.round.findUnique({
@@ -226,6 +239,11 @@ export const scoreService = {
   /**
    * Get Inter-Rater Reliability analytics for a round.
    * Calculates ICC and Krippendorff's Alpha.
+   * Core Flow:
+   * 1. Aggregates criteria and judges lists for the target round.
+   * 2. Loops criteria to generate Submission x Judge scoring grids.
+   * 3. Computes ICC and Krippendorff's Alpha values per criterion.
+   * 4. Forms an overall weighted average matrix to evaluate overall rating consistency.
    */
   async getRblAnalytics(roundId: string) {
     const round = await prisma.round.findUnique({
