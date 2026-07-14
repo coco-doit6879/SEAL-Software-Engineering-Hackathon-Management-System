@@ -11,6 +11,7 @@ interface ScoreStats {
 
 /**
  * Calculates mean, variance, and standard deviation for a simple list of numbers.
+ * Core Flow: Compute average, sample variance (N-1 degrees of freedom), and standard deviation.
  */
 export const calculateStats = (scores: number[]): ScoreStats => {
   if (scores.length === 0) {
@@ -18,13 +19,16 @@ export const calculateStats = (scores: number[]): ScoreStats => {
   }
 
   const n = scores.length;
+  // Compute Mean
   const mean = scores.reduce((sum, val) => sum + val, 0) / n;
-  
+
   if (n === 1) {
     return { mean, variance: 0, stdDev: 0 };
   }
 
+  // Compute Sample Variance
   const variance = scores.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (n - 1);
+  // Compute Standard Deviation
   const stdDev = Math.sqrt(variance);
 
   return { mean, variance, stdDev };
@@ -34,11 +38,14 @@ export const calculateStats = (scores: number[]): ScoreStats => {
  * Calculates Intraclass Correlation Coefficient ICC(2,1) for absolute agreement.
  * @param matrix A 2D array of size N (submissions) x K (judges), representing ratings.
  *               Assumes no missing values.
+ * Core Flow: Two-way random effects model. Calculates grand mean, row means (targets),
+ * and column means (raters). Computes SSR (between targets), SSC (between raters),
+ * and SSE (residual error). Combines them into ICC(2,1).
  */
 export const calculateICC = (matrix: number[][]): number => {
   const n = matrix.length; // Number of items (submissions)
   if (n <= 1) return 0;
-  
+
   const k = matrix[0].length; // Number of raters (judges)
   if (k <= 1) return 0;
 
@@ -112,6 +119,8 @@ export const calculateICC = (matrix: number[][]): number => {
  * Calculates Krippendorff's Alpha for interval data.
  * This can handle missing values (indicated by null).
  * @param matrix A 2D array of size N (submissions) x K (judges).
+ * Core Flow: Compute observed disagreement (Do) and expected disagreement (De)
+ * for interval data, accounting for potential missing values (nulls).
  */
 export const calculateKrippendorffAlpha = (matrix: (number | null)[][]): number => {
   const n = matrix.length;
@@ -170,6 +179,7 @@ export const calculateKrippendorffAlpha = (matrix: (number | null)[][]): number 
     return Do === 0 ? 1 : 0;
   }
 
+  // Calculate Alpha = 1 - (Do / De)
   const alpha = 1 - (Do / De);
   return Math.round(alpha * 1000) / 1000;
 };
