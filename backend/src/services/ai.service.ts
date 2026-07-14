@@ -15,27 +15,35 @@ const getGenAI = () => {
 const SAMPLE_RULES = [
   {
     title: "1. Thể lệ nộp bài & Hạn chót (Deadline)",
-    content: "Thí sinh phải nộp bài đúng hạn thông qua hệ thống SEAL-HMS. Đường dẫn bài nộp phải bao gồm Repo URL (GitHub) và Demo URL (ví dụ: Vercel, Netlify). Khi nộp bài, hệ thống sẽ tự động ghi nhận Git Commit SHA mới nhất tại thời điểm nộp để khóa mã nguồn, ngăn chặn các chỉnh sửa sau deadline. Mọi bài nộp trễ hạn sau thời gian đóng link nộp bài (Submission Deadline) sẽ bị hệ thống tự động khóa và đánh dấu lỗi nộp muộn trừ khi có sự xác nhận đặc biệt từ Ban tổ chức (Coordinator). Trạng thái nộp bài thành công chỉ khi Đội trưởng (Leader) của đội bấm submit."
+    content: "Thí sinh phải nộp bài đúng hạn thông qua hệ thống SEAL-HMS. Đường dẫn bài nộp phải bao gồm Repo URL (GitHub) và Demo URL (ví dụ: Vercel, Netlify). Mã nguồn dự án tại Repo URL bắt buộc phải để ở chế độ công khai (public); nếu để ở chế độ riêng tư (private) khiến giám khảo không thể truy cập, đội thi sẽ bị điểm 0 cho phần tiêu chí Kỹ thuật (Technical). Khi bấm nộp bài, hệ thống sẽ tự động ghi nhận Git Commit SHA mới nhất tại thời điểm đó để khóa mã nguồn, ngăn chặn các chỉnh sửa sau deadline. Mọi bài nộp trễ hạn sau thời gian đóng link nộp bài (Submission Deadline) sẽ bị hệ thống tự động khóa và đánh dấu lỗi nộp muộn trừ khi có sự xác nhận đặc biệt từ Ban tổ chức (Coordinator). Trạng thái nộp bài thành công chỉ khi Đội trưởng (Leader) của đội bấm submit."
   },
   {
     title: "2. Quy định về Đội thi & Thành viên",
-    content: "Mỗi đội thi phải có tối thiểu 3 thành viên và tối đa 5 thành viên. Mỗi đội thi phải bầu ra 1 Đội trưởng (Team Leader). Mỗi thí sinh chỉ được phép tham gia tối đa 1 đội thi duy nhất trong toàn bộ một Sự kiện (Event). Khi được mời vào đội, thí sinh sẽ nhận được lời mời ở trạng thái chờ duyệt (PENDING) và phải chủ động chấp nhận (ACCEPT) hoặc từ chối (REJECT). Chỉ khi chấp nhận lời mời, thí sinh mới chính thức trở thành thành viên đội thi. Chỉ có Đội trưởng mới có quyền thay mặt đội nộp bài, chỉnh sửa thông tin bài nộp trên hệ thống. Trạng thái của đội thi phải được Coordinator duyệt (APPROVED) thì mới được phép tham gia nộp bài."
+    content: "Mỗi đội thi phải có tối thiểu 3 thành viên và tối đa 5 thành viên. Mỗi đội thi phải bầu ra 1 Đội trưởng (Team Leader). Mỗi thí sinh chỉ được phép tham gia tối đa 1 đội thi duy nhất trong toàn bộ một Sự kiện (Event). Khi được mời vào đội, thí sinh sẽ nhận được lời mời ở trạng thái chờ duyệt (PENDING) và phải chủ động bấm Chấp nhận (ACCEPT) hoặc Từ chối (REJECT). Thí sinh không thể chấp nhận lời mời mới nếu đã là thành viên chính thức của một đội khác. Chỉ có Đội trưởng mới có quyền thay mặt đội nộp bài, chỉnh sửa thông tin bài nộp trên hệ thống. Trạng thái của đội thi phải được Coordinator duyệt (APPROVED) thì mới được phép tham gia nộp bài."
   },
   {
     title: "3. Tiêu chí chấm điểm & Trọng số",
-    content: "Điểm số của mỗi vòng thi được chấm bởi Hội đồng giám khảo gồm các Giám khảo nội bộ (Internal Judge) và Giám khảo khách mời (Guest Judge). Tiêu chí chấm điểm bao gồm: Tiêu chí kỹ thuật (Technical Depth - chiếm 50% trọng số, ví dụ chất lượng code, kiến trúc hệ thống), Thiết kế giao diện (UI/UX - chiếm 20% trọng số), và Kỹ năng thuyết trình (Presentation/Pitching - chiếm 30% trọng số). Giám khảo chấm điểm độc lập trên thang điểm 10."
+    content: "Điểm số của mỗi vòng thi được chấm bởi Hội đồng giám khảo gồm các Giám khảo nội bộ (Internal Judge) và Giám khảo khách mời (Guest Judge). Tiêu chí chấm điểm bao gồm ba phần chính: Tiêu chí kỹ thuật (Technical Depth - chiếm 50% trọng số, ví dụ chất lượng code, kiến trúc hệ thống), Thiết kế giao diện (UI/UX - chiếm 20% trọng số), và Kỹ năng thuyết trình (Presentation/Pitching - chiếm 30% trọng số). Giám khảo chấm điểm độc lập trên thang điểm 10 (chấp nhận điểm lẻ đến một chữ số thập phân). Điểm trung bình cuối cùng của đội được hệ thống quy đổi tự động về hệ phần trăm (%)."
   },
   {
     title: "4. Cơ chế chấm thử (Calibration)",
-    content: "Trước khi chấm chính thức các bài thi của các đội, Ban giám khảo bắt buộc phải thực hiện chấm thử một dự án mẫu (Calibration Sample). Mục tiêu là để tính toán chỉ số tương quan nội lớp ICC (Intraclass Correlation Coefficient) và Krippendorff's Alpha nhằm đo lường mức độ đồng thuận giữa các giám khảo. Nếu chỉ số ICC < 0.7, Coordinator sẽ yêu cầu hội đồng họp thảo luận lại thang tiêu chí để đồng bộ cách đánh giá."
+    content: "Trước khi chấm chính thức các bài thi của các đội, Ban giám khảo bắt buộc phải thực hiện chấm thử toàn bộ các dự án mẫu (Calibration Sample) được cấu hình cho vòng thi đó. Nếu giám khảo chưa hoàn thành chấm điểm cho 100% số lượng dự án mẫu, hệ thống sẽ tự động khóa và chặn quyền truy cập vào giao diện chấm điểm các bài nộp chính thức. Mục tiêu của chấm thử là tính toán chỉ số tương quan nội lớp ICC (Intraclass Correlation Coefficient) và Krippendorff's Alpha để đo độ đồng thuận. Nếu chỉ số ICC < 0.7, Coordinator sẽ yêu cầu hội đồng họp thảo luận lại thang tiêu chí để thống nhất cách đánh giá."
   },
   {
     title: "5. Cơ chế đi tiếp & Loại trừ (Progression)",
-    content: "Sau khi kết thúc mỗi vòng đấu, dựa trên bảng xếp hạng (Leaderboard) được tính theo trung bình điểm có trọng số từ các giám khảo, hệ thống sẽ lọc ra Top N đội có điểm cao nhất của từng Track để chuyển thẳng vào vòng tiếp theo. Vòng thi chỉ có thể hoàn thành (COMPLETED) khi tất cả giám khảo được phân công đã hoàn thành 100% phiếu chấm của họ. Nếu có giám khảo vắng mặt, Ban tổ chức (Coordinator) có thể xóa họ ra khỏi vòng thi để loại trừ điểm số của họ khỏi bảng xếp hạng. Các đội không nằm trong Top N sẽ bị loại và không thể nộp bài ở vòng sau."
+    content: "Sau khi kết thúc mỗi vòng đấu, dựa trên bảng xếp hạng (Leaderboard) được tính theo trung bình điểm có trọng số từ các giám khảo, hệ thống sẽ lọc ra Top N đội có điểm cao nhất của từng Track để chuyển thẳng vào vòng tiếp theo. Vòng thi chỉ có thể hoàn thành (COMPLETED) khi tất cả giám khảo được phân công đã hoàn thành 100% phiếu chấm của họ. Nếu có giám khảo vắng mặt, Ban tổ chức (Coordinator) có thể xóa họ ra khỏi vòng thi để loại trừ điểm số của họ khỏi bảng xếp hạng. Các đội không nằm trong Top N sẽ bị loại và không thể nộp bài ở vòng sau. Nếu có nhiều đội hòa điểm ở ranh giới đi tiếp, hệ thống áp dụng các tiêu chí phụ: ưu tiên đội có điểm Technical cao hơn, sau đó ưu tiên đội nộp bài sớm hơn."
   },
   {
     title: "6. Quy tắc ứng xử & Gian lận",
-    content: "Nghiêm cấm mọi hành vi sao chép mã nguồn không ghi rõ nguồn, sử dụng các sản phẩm đã hoàn thiện trước cuộc thi mà không báo cáo, hoặc đạo nhái ý tưởng của đội khác. Các trường hợp vi phạm sẽ bị Coordinator hủy tư cách thi đấu (Disqualified). Mọi hành động hủy tư cách thi đấu sẽ được ghi vết rõ ràng kèm lý do chi tiết vào hệ thống Audit Log để bảo đảm tính minh bạch."
+    content: "Nghiêm cấm mọi hành vi sao chép mã nguồn không ghi rõ nguồn, sử dụng các sản phẩm đã hoàn thiện trước cuộc thi mà không báo cáo, đạo nhái ý tưởng, hoặc có hành vi phá hoại hệ thống nộp bài. Các trường hợp vi phạm sẽ bị Coordinator hủy tư cách thi đấu (Disqualified). Mọi hành động hủy tư cách thi đấu sẽ được ghi vết rõ ràng kèm lý do chi tiết vào hệ thống Audit Log để bảo đảm tính minh bạch và phục vụ hậu kiểm."
+  },
+  {
+    title: "7. Sở hữu trí tuệ & Bản quyền (Intellectual Property)",
+    content: "Mã nguồn và sản phẩm dự thi thuộc quyền sở hữu trí tuệ của đội thi. Tuy nhiên, bằng việc tham gia giải đấu, đội thi đồng ý cấp quyền cho Ban tổ chức cuộc thi sử dụng hình ảnh, video thuyết trình, tên dự án, bản mô tả tóm tắt và mã nguồn để phục vụ các hoạt động truyền thông, quảng bá phi thương mại, và báo cáo học thuật phục vụ nhà trường."
+  },
+  {
+    title: "8. Khiếu nại & Phúc khảo điểm số (Appeals)",
+    content: "Sau khi bảng xếp hạng chính thức của vòng thi được công bố, các đội thi có tối đa 24 giờ để gửi đơn khiếu nại hoặc phúc khảo điểm số thông qua Đội trưởng (Team Leader) tới Ban tổ chức (Coordinator). Đơn khiếu nại phải nêu rõ lý do và cung cấp minh chứng cụ thể. Quyết định giải quyết của Ban tổ chức và Hội đồng giám khảo dựa trên lịch sử hoạt động hệ thống (Audit Logs) là quyết định cuối cùng."
   }
 ];
 
