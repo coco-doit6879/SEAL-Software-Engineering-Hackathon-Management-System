@@ -124,17 +124,25 @@ export const authService = {
       updateData.passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
     }
 
-    // Update user
-    await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-    });
+    // Update user only if there are fields to update
+    if (Object.keys(updateData).length > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+    }
 
     // Update studentProfile if role is STUDENT
     if (user.role === Role.STUDENT && (data.university || data.studentCode)) {
-      await prisma.studentProfile.update({
+      await prisma.studentProfile.upsert({
         where: { userId },
-        data: {
+        create: {
+          userId,
+          isFptStudent: data.studentCode ? data.studentCode.toUpperCase().startsWith('SE') : true,
+          studentCode: data.studentCode || 'UNASSIGNED',
+          university: data.university || 'FPT University HCMC',
+        },
+        update: {
           ...(data.university && { university: data.university }),
           ...(data.studentCode && { studentCode: data.studentCode }),
         },
