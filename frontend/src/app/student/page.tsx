@@ -25,6 +25,7 @@ import {
   BookOpen,
   Eye,
   X,
+  Sparkles,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 
@@ -666,6 +667,13 @@ export default function StudentDashboard() {
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            <Link
+              href="/ai-assistant"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-600/10 hover:bg-orange-600/20 text-orange-400 border border-orange-500/25 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+              <span>Hỏi Trợ lý AI</span>
+            </Link>
             <Link
               href="/profile"
               className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 hover:border-orange-500/50 transition-colors"
