@@ -15,11 +15,11 @@ const getGenAI = () => {
 const SAMPLE_RULES = [
   {
     title: "1. Thể lệ nộp bài & Hạn chót (Deadline)",
-    content: "Thí sinh phải nộp bài đúng hạn thông qua hệ thống SEAL-HMS. Đường dẫn bài nộp phải bao gồm Repo URL (GitHub) và Demo URL (ví dụ: Vercel, Netlify). Mọi bài nộp trễ hạn sau thời gian đóng link nộp bài (Submission Deadline) sẽ bị hệ thống tự động khóa và đánh dấu lỗi nộp muộn trừ khi có sự xác nhận đặc biệt từ Ban tổ chức (Coordinator). Trạng thái nộp bài thành công chỉ khi Đội trưởng (Leader) của đội bấm submit."
+    content: "Thí sinh phải nộp bài đúng hạn thông qua hệ thống SEAL-HMS. Đường dẫn bài nộp phải bao gồm Repo URL (GitHub) và Demo URL (ví dụ: Vercel, Netlify). Khi nộp bài, hệ thống sẽ tự động ghi nhận Git Commit SHA mới nhất tại thời điểm nộp để khóa mã nguồn, ngăn chặn các chỉnh sửa sau deadline. Mọi bài nộp trễ hạn sau thời gian đóng link nộp bài (Submission Deadline) sẽ bị hệ thống tự động khóa và đánh dấu lỗi nộp muộn trừ khi có sự xác nhận đặc biệt từ Ban tổ chức (Coordinator). Trạng thái nộp bài thành công chỉ khi Đội trưởng (Leader) của đội bấm submit."
   },
   {
     title: "2. Quy định về Đội thi & Thành viên",
-    content: "Mỗi đội thi phải có tối thiểu 3 thành viên và tối đa 5 thành viên. Mỗi đội thi phải bầu ra 1 Đội trưởng (Team Leader). Chỉ có Đội trưởng mới có quyền thay mặt đội nộp bài, chỉnh sửa thông tin bài nộp trên hệ thống. Các thành viên khác chỉ có quyền xem trạng thái. Trạng thái của đội thi phải được Coordinator duyệt (APPROVED) thì mới được phép tham gia nộp bài."
+    content: "Mỗi đội thi phải có tối thiểu 3 thành viên và tối đa 5 thành viên. Mỗi đội thi phải bầu ra 1 Đội trưởng (Team Leader). Mỗi thí sinh chỉ được phép tham gia tối đa 1 đội thi duy nhất trong toàn bộ một Sự kiện (Event). Khi được mời vào đội, thí sinh sẽ nhận được lời mời ở trạng thái chờ duyệt (PENDING) và phải chủ động chấp nhận (ACCEPT) hoặc từ chối (REJECT). Chỉ khi chấp nhận lời mời, thí sinh mới chính thức trở thành thành viên đội thi. Chỉ có Đội trưởng mới có quyền thay mặt đội nộp bài, chỉnh sửa thông tin bài nộp trên hệ thống. Trạng thái của đội thi phải được Coordinator duyệt (APPROVED) thì mới được phép tham gia nộp bài."
   },
   {
     title: "3. Tiêu chí chấm điểm & Trọng số",
@@ -31,7 +31,7 @@ const SAMPLE_RULES = [
   },
   {
     title: "5. Cơ chế đi tiếp & Loại trừ (Progression)",
-    content: "Sau khi kết thúc mỗi vòng đấu, dựa trên bảng xếp hạng (Leaderboard) được tính theo trung bình điểm có trọng số từ các giám khảo, hệ thống sẽ lọc ra Top N đội có điểm cao nhất của từng Track (được cấu hình bởi thuộc tính topNToProgress của vòng đó) để chuyển thẳng vào vòng tiếp theo. Các đội không nằm trong Top N sẽ bị loại và không thể nộp bài ở vòng sau."
+    content: "Sau khi kết thúc mỗi vòng đấu, dựa trên bảng xếp hạng (Leaderboard) được tính theo trung bình điểm có trọng số từ các giám khảo, hệ thống sẽ lọc ra Top N đội có điểm cao nhất của từng Track để chuyển thẳng vào vòng tiếp theo. Vòng thi chỉ có thể hoàn thành (COMPLETED) khi tất cả giám khảo được phân công đã hoàn thành 100% phiếu chấm của họ. Nếu có giám khảo vắng mặt, Ban tổ chức (Coordinator) có thể xóa họ ra khỏi vòng thi để loại trừ điểm số của họ khỏi bảng xếp hạng. Các đội không nằm trong Top N sẽ bị loại và không thể nộp bài ở vòng sau."
   },
   {
     title: "6. Quy tắc ứng xử & Gian lận",
