@@ -64,6 +64,7 @@ interface TeamData {
     name: string;
     event?: { id: string; name: string };
   };
+  invitations?: any[];
 }
 
 interface Round {
@@ -196,6 +197,7 @@ export default function StudentDashboard() {
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState("");
   const [submittingAddMember, setSubmittingAddMember] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
 
   // ── Toast helpers ──
   function addToast(type: ToastType, message: string) {
@@ -222,6 +224,15 @@ export default function StudentDashboard() {
       const meRes = await fetchWithAuth("/auth/me");
       const currentUser: UserMe = meRes.data?.user ?? meRes.user ?? meRes;
       setUser(currentUser);
+
+      // Fetch pending invitations
+      try {
+        const invRes = await fetchWithAuth("/teams/invitations/my-invitations");
+        const invList = invRes.data ?? invRes ?? [];
+        setPendingInvitations(invList);
+      } catch (e) {
+        console.error("Failed to load user invitations:", e);
+      }
 
       // Step 2: Get team membership
       let teamData: TeamData | null = null;
@@ -479,7 +490,7 @@ export default function StudentDashboard() {
         return;
       }
 
-      // 2. Add to team
+      // 2. Add to team (sends invitation)
       await fetchWithAuth(`/teams/${team.id}/members`, {
         method: "POST",
         body: JSON.stringify({
@@ -487,7 +498,7 @@ export default function StudentDashboard() {
         }),
       });
 
-      addToast("success", `Đã thêm thành viên ${userToRegister.fullName} vào đội!`);
+      addToast("success", `Đã gửi lời mời tham gia tới ${userToRegister.fullName}!`);
       setEmailToAdd("");
       await loadData();
     } catch (err: any) {
@@ -511,6 +522,34 @@ export default function StudentDashboard() {
       await loadData();
     } catch (err: any) {
       addToast("error", err?.message || "Xóa thành viên thất bại.");
+    }
+  };
+
+  const handleRespondInvitation = async (invitationId: string, action: "ACCEPT" | "REJECT", teamName: string) => {
+    try {
+      await fetchWithAuth(`/teams/invitations/${invitationId}/respond`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
+      addToast("success", `${action === "ACCEPT" ? "Đã đồng ý tham gia" : "Đã từ chối lời mời vào"} đội "${teamName}".`);
+      await loadData();
+    } catch (err: any) {
+      addToast("error", err?.message || "Không thể xử lý lời mời.");
+    }
+  };
+
+  const handleCancelInvitation = async (invitationId: string, userName: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn hủy lời mời dành cho "${userName}"?`)) {
+      return;
+    }
+    try {
+      await fetchWithAuth(`/teams/invitations/${invitationId}`, {
+        method: "DELETE",
+      });
+      addToast("success", `Đã hủy lời mời dành cho "${userName}".`);
+      await loadData();
+    } catch (err: any) {
+      addToast("error", err?.message || "Hủy lời mời thất bại.");
     }
   };
 
@@ -651,6 +690,55 @@ export default function StudentDashboard() {
 
       {/* ── Main ── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        {/* ══ SECTION 0: Pending Invitations ══ */}
+        {pendingInvitations.length > 0 && (
+          <section className="animate-fade-in space-y-3">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-orange-400" />
+              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+                Lời mời vào đội thi ({pendingInvitations.length})
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {pendingInvitations.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="rounded-2xl p-5 border border-orange-500/20 bg-orange-500/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                  style={{
+                    backdropFilter: "blur(12px)",
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white">
+                      Lời mời gia nhập đội <span className="text-orange-400">"{inv.team.name}"</span>
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Sự kiện: <span className="text-slate-300 font-semibold">{inv.team.track?.event?.name}</span> · Track: <span className="text-slate-300">{inv.team.track?.name}</span>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Thành viên hiện tại: {inv.team.members?.map((m: any) => m.user?.fullName || m.fullName).join(", ") || "Chưa có"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => handleRespondInvitation(inv.id, "ACCEPT", inv.team.name)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white transition-all shadow-md shadow-orange-500/10"
+                    >
+                      Đồng ý
+                    </button>
+                    <button
+                      onClick={() => handleRespondInvitation(inv.id, "REJECT", inv.team.name)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/50 transition-all"
+                    >
+                      Từ chối
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ══ SECTION 1: Team Info ══ */}
         <section id="team">
           <div className="flex items-center gap-2 mb-4">
@@ -853,6 +941,32 @@ export default function StudentDashboard() {
                             </button>
                           )
                         )}
+                      </div>
+                    ))}
+                    {isLeader && team.invitations && team.invitations.map((inv: any) => (
+                      <div
+                        key={inv.id}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/15 border border-dashed border-slate-700/40 opacity-75 animate-fade-in"
+                      >
+                        <div className="w-7 h-7 rounded-full bg-slate-850 border border-slate-750 flex items-center justify-center text-xs font-medium text-slate-500 flex-shrink-0">
+                          {inv.user.fullName?.[0]?.toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-slate-300 font-medium truncate">
+                            {inv.user.fullName}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {inv.user.email} <span className="text-amber-500/80 font-normal ml-1">(Đang chờ...)</span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelInvitation(inv.id, inv.user.fullName)}
+                          className="ml-auto p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all flex-shrink-0"
+                          title="Hủy lời mời"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>

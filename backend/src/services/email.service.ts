@@ -135,5 +135,29 @@ export const emailService = {
     `;
 
     return this.sendEmail(to, subject, htmlContent);
+  },
+
+  async sendTeamInvitationEmail(
+    to: string,
+    studentName: string,
+    teamName: string,
+    leaderName: string,
+    eventName: string
+  ) {
+    const subject = `[SEAL Hackathon 2026] Lời mời tham gia Đội thi - ${teamName}`;
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #f97316; border-bottom: 2px solid #f97316; padding-bottom: 10px;">SEAL Hackathon Portal</h2>
+        <p>Xin chào <strong>${studentName}</strong>,</p>
+        <p>Bạn đã nhận được lời mời tham gia đội thi <strong>${teamName}</strong> (Sự kiện: <strong>${eventName}</strong>) từ đội trưởng <strong>${leaderName}</strong>.</p>
+        
+        <p>Vui lòng đăng nhập vào hệ thống SEAL Hackathon Portal để xem chi tiết và phản hồi (Đồng ý hoặc Từ chối) lời mời này.</p>
+        
+        <p>Nếu bạn có bất kỳ câu hỏi nào khác, vui lòng liên hệ Ban tổ chức.</p>
+        <br>
+        <p>Trân trọng,<br><strong>Ban tổ chức SEAL Hackathon 2026</strong></p>
+      </div>
+    `;
+    return this.sendEmail(to, subject, htmlContent);
   }
 };

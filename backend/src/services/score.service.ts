@@ -153,11 +153,13 @@ export const scoreService = {
   async getLeaderboard(roundId: string) {
     const round = await prisma.round.findUnique({
       where: { id: roundId },
-      include: { criteria: true },
+      include: { criteria: true, judges: true },
     });
     if (!round) {
       throw ApiError.notFound('Round not found.');
     }
+
+    const assignedJudgeIds = round.judges.map((j) => j.userId);
 
     const submissions = await prisma.submission.findMany({
       where: { roundId, isDisqualified: false },
@@ -178,11 +180,14 @@ export const scoreService = {
       },
     });
 
-    // Calculate weighted scores for each submission
+    // Calculate weighted scores and technical scores for each submission
     const leaderboard = submissions.map((submission) => {
       // Group scores by judge
       const judgeScores: Record<string, Record<string, number>> = {};
       for (const score of submission.scores) {
+        if (!assignedJudgeIds.includes(score.judgeId)) {
+          continue; // Skip scores from unassigned judges
+        }
         if (!judgeScores[score.judgeId]) {
           judgeScores[score.judgeId] = {};
         }
@@ -191,6 +196,9 @@ export const scoreService = {
 
       // For each judge, calculate their weighted total
       const judgeTotals: number[] = [];
+      const judgeTechnicalTotals: number[] = [];
+      const technicalCriteria = round.criteria.filter((c) => c.isTechnical);
+
       for (const judgeId of Object.keys(judgeScores)) {
         let total = 0;
         for (const criterion of round.criteria) {
@@ -200,12 +208,26 @@ export const scoreService = {
           total += normalizedScore * criterion.weight;
         }
         judgeTotals.push(total * 100); // Convert to percentage
+
+        let techSum = 0;
+        let techCount = 0;
+        for (const criterion of technicalCriteria) {
+          techSum += judgeScores[judgeId][criterion.id] || 0;
+          techCount++;
+        }
+        const avgTechForJudge = techCount > 0 ? techSum / techCount : 0;
+        judgeTechnicalTotals.push(avgTechForJudge);
       }
 
       // Average across judges
       const averageScore =
         judgeTotals.length > 0
           ? judgeTotals.reduce((sum, t) => sum + t, 0) / judgeTotals.length
+          : 0;
+
+      const averageTechnicalScore =
+        judgeTechnicalTotals.length > 0
+          ? judgeTechnicalTotals.reduce((sum, t) => sum + t, 0) / judgeTechnicalTotals.length
           : 0;
 
       return {
@@ -221,13 +243,25 @@ export const scoreService = {
           })),
         },
         averageScore: Math.round(averageScore * 100) / 100,
+        averageTechnicalScore: Math.round(averageTechnicalScore * 100) / 100,
         judgeCount: Object.keys(judgeScores).length,
         submittedAt: submission.submittedAt,
       };
     });
 
-    // Sort by average score descending
-    leaderboard.sort((a, b) => b.averageScore - a.averageScore);
+    // Sort by:
+    // 1. averageScore descending
+    // 2. averageTechnicalScore descending
+    // 3. submittedAt ascending (earliest submission time first)
+    leaderboard.sort((a, b) => {
+      if (b.averageScore !== a.averageScore) {
+        return b.averageScore - a.averageScore;
+      }
+      if (b.averageTechnicalScore !== a.averageTechnicalScore) {
+        return b.averageTechnicalScore - a.averageTechnicalScore;
+      }
+      return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+    });
 
     // Assign ranks
     return leaderboard.map((entry, index) => ({

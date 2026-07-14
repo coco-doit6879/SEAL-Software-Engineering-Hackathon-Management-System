@@ -10,6 +10,7 @@ import {
   teamIdParamSchema,
   trackIdParamSchema,
   removeMemberParamSchema,
+  respondInvitationSchema,
 } from '../validators/team.validator';
 
 const router = Router();
@@ -64,6 +65,81 @@ router.post(
  *         description: List of team memberships for student
  */
 router.get('/my-team', authorize('STUDENT'), teamController.getMyTeam);
+
+/**
+ * @openapi
+ * /teams/invitations/my-invitations:
+ *   get:
+ *     summary: Get pending invitations for the current user
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of pending invitations
+ */
+router.get('/invitations/my-invitations', authorize('STUDENT'), teamController.getMyInvitations);
+
+/**
+ * @openapi
+ * /teams/invitations/{id}/respond:
+ *   post:
+ *     summary: Respond to a team invitation (ACCEPT or REJECT)
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [ACCEPT, REJECT]
+ *     responses:
+ *       200:
+ *         description: Invitation responded to successfully
+ */
+router.post(
+  '/invitations/:id/respond',
+  authorize('STUDENT'),
+  validate({ body: respondInvitationSchema }),
+  teamController.respondToInvitation
+);
+
+/**
+ * @openapi
+ * /teams/invitations/{id}:
+ *   delete:
+ *     summary: Cancel a pending team invitation (Leader only)
+ *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Invitation cancelled successfully
+ */
+router.delete(
+  '/invitations/:id',
+  authorize('STUDENT'),
+  teamController.cancelInvitation
+);
 
 /**
  * @openapi

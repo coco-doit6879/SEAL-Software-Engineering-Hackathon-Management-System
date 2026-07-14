@@ -50,3 +50,40 @@ export function paginatedResponse<T>(
     },
   };
 }
+
+/**
+ * Fetch latest commit SHA from GitHub API for a given repository URL.
+ */
+export async function getLatestCommitSha(repoUrl: string): Promise<string | null> {
+  try {
+    const regex = /github\.com\/([^\/]+)\/([^\/.]+)/;
+    const match = repoUrl.match(regex);
+    if (!match) return null;
+    const owner = match[1];
+    let repo = match[2];
+    if (repo.endsWith('.git')) {
+      repo = repo.slice(0, -4);
+    }
+    
+    const headers: Record<string, string> = {
+      'User-Agent': 'SEAL-HMS-Backend',
+    };
+    if (process.env.GITHUB_PERSONAL_ACCESS_TOKEN) {
+      headers['Authorization'] = `token ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN}`;
+    }
+    
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits`, { headers });
+    if (!response.ok) {
+      console.warn(`GitHub API returned status ${response.status} for ${owner}/${repo}`);
+      return null;
+    }
+    const data: any = await response.json();
+    if (Array.isArray(data) && data.length > 0 && data[0].sha) {
+      return data[0].sha;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to get latest commit SHA from GitHub:', error);
+    return null;
+  }
+}

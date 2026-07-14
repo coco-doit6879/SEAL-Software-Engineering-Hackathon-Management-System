@@ -546,6 +546,23 @@ function CoordinatorDashboardContent() {
   const approvedTeams = teams.filter((t) => t.status === "APPROVED");
   const disqualifiedTeams = teams.filter((t) => t.status === "DISQUALIFIED");
 
+  const checkBoundaryTie = () => {
+    if (!selectedRound || leaderboard.length <= selectedRound.topNToProgress) return null;
+    const boundaryRank = selectedRound.topNToProgress;
+    const boundaryTeam = leaderboard[boundaryRank - 1]; // 0-indexed
+    const nextTeam = leaderboard[boundaryRank];
+    if (boundaryTeam && nextTeam && boundaryTeam.averageScore === nextTeam.averageScore) {
+      // Find all teams with this same averageScore
+      const tiedTeams = leaderboard.filter(t => t.averageScore === boundaryTeam.averageScore);
+      return {
+        score: boundaryTeam.averageScore,
+        teams: tiedTeams
+      };
+    }
+    return null;
+  };
+  const boundaryTie = checkBoundaryTie();
+
   /* ═══════════════════════════════════════════════════════════════════════════
      RENDER
      ═══════════════════════════════════════════════════════════════════════════ */
@@ -1046,7 +1063,31 @@ function CoordinatorDashboardContent() {
               sub="Dữ liệu xếp hạng sẽ hiển thị khi giám khảo hoàn thành chấm điểm các bài nộp."
             />
           ) : (
-            <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
+            <div className="space-y-4">
+              {boundaryTie && (
+                <div className="flex items-start gap-3 p-4 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 animate-slide-up">
+                  <AlertTriangle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-yellow-400">
+                      ⚠️ Phát hiện trùng điểm tại ranh giới thăng hạng (Hạng {selectedRound?.topNToProgress})
+                    </p>
+                    <p className="text-xs text-yellow-400/80 mt-1 leading-relaxed">
+                      Các đội sau có cùng tổng điểm trung bình là <span className="font-mono font-bold">{boundaryTie.score}%</span>:
+                    </p>
+                    <ul className="list-disc pl-5 mt-1.5 space-y-1 text-xs text-yellow-400/70">
+                      {boundaryTie.teams.map((t: any, index: number) => (
+                        <li key={t.submissionId}>
+                          <span className="font-semibold text-white">{t.team.name}</span> (Điểm Technical: {t.averageTechnicalScore}%, Nộp lúc: {new Date(t.submittedAt).toLocaleString("vi-VN")})
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-yellow-500/60 mt-2">
+                      * Hệ thống đã tự động xếp thứ tự ưu tiên phụ dựa trên điểm tiêu chí Technical và thời gian nộp bài sớm nhất. Ban tổ chức vui lòng tham khảo điểm số chi tiết hoặc hội ý giám khảo để quyết định thủ công (nếu cần điều chỉnh điểm).
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1128,6 +1169,7 @@ function CoordinatorDashboardContent() {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           )}
         </div>

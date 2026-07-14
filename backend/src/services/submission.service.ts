@@ -4,6 +4,7 @@ import { auditService } from './audit.service';
 import { CreateSubmissionInput } from '../validators/submission.validator';
 import { scoreService } from './score.service';
 import { emailService } from './email.service';
+import { getLatestCommitSha } from '../utils/helpers';
 
 export const submissionService = {
   /**
@@ -94,6 +95,8 @@ export const submissionService = {
       throw ApiError.badRequest('Submission deadline has passed.');
     }
 
+    const commitSha = await getLatestCommitSha(data.repoUrl);
+
     const submission = await prisma.submission.create({
       data: {
         roundId: data.roundId,
@@ -101,6 +104,7 @@ export const submissionService = {
         repoUrl: data.repoUrl,
         demoUrl: data.demoUrl,
         documentUrl: data.documentUrl,
+        commitSha,
       },
       include: {
         team: true,
