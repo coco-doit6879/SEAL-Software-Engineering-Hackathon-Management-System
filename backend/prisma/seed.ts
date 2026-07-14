@@ -21,7 +21,7 @@ async function main() {
   await prisma.event.deleteMany({});
   await prisma.studentProfile.deleteMany({});
   await prisma.user.deleteMany({});
-  
+
   console.log('Seeding database...');
 
   // 1. Hash passwords for seed accounts
@@ -200,36 +200,8 @@ async function main() {
   });
   console.log('Judges assigned to Prelim and Final rounds.');
 
-  // 11. Create seeded Teams and assign members
-  const teamAlpha = await prisma.team.create({
-    data: {
-      name: 'Alpha Team (Web Application)',
-      trackId: webTrack.id,
-      status: TeamStatus.APPROVED,
-      members: {
-        create: {
-          userId: student1.id,
-          isLeader: true
-        }
-      }
-    }
-  });
-  console.log(`Team Alpha created and approved.`);
-
-  const teamBeta = await prisma.team.create({
-    data: {
-      name: 'Beta Team (Mobile Application)',
-      trackId: mobileTrack.id,
-      status: TeamStatus.PENDING,
-      members: {
-        create: {
-          userId: student2.id,
-          isLeader: true
-        }
-      }
-    }
-  });
-  console.log(`Team Beta created and pending.`);
+  // 11. Create seeded Teams and assign members (Omitted to allow live creation/invitation demo)
+  console.log('Skipping team seeding to allow live team creation demo.');
 
   // 12. Create Calibration Sample for Prelim Round
   const sample = await prisma.calibrationSample.create({
