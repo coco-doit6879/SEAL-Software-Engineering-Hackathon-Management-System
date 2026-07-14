@@ -77,6 +77,14 @@ export const authService = {
       throw ApiError.unauthorized('Incorrect email or password.');
     }
 
+    if (user.status === 'PENDING') {
+      throw ApiError.forbidden('Your account is pending approval by a coordinator.');
+    }
+
+    if (user.status !== 'APPROVED') {
+      throw ApiError.forbidden('Your account is blocked or rejected.');
+    }
+
     const isMatch = await bcrypt.compare(data.password, user.passwordHash);
     if (!isMatch) {
       throw ApiError.unauthorized('Incorrect email or password.');

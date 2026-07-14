@@ -35,7 +35,9 @@ export async function fetchWithAuth<T = any>(
     if (response.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("seal_hms_token");
       localStorage.removeItem("seal_hms_user");
-      window.location.href = "/auth/login";
+      if (window.location.pathname !== "/auth/login") {
+        window.location.href = "/auth/login";
+      }
     }
 
     throw new Error(data?.message || "Đã xảy ra lỗi hệ thống.");
