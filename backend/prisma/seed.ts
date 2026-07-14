@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Clearing database...');
   // Delete in correct order to avoid foreign key / reference issues
+  await prisma.ruleDocument.deleteMany({});
   await prisma.teamInvitation.deleteMany({});
   await prisma.auditLog.deleteMany({});
   await prisma.calibrationScore.deleteMany({});
